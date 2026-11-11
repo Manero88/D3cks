@@ -119,7 +119,7 @@ function slotsHtml(p,mine,st){
       if(mine){
         var cls='',dis=true;
         if(v.phase==='swap'){dis=sel===null||st.ready;cls=sel!==null&&!st.ready?'target':'';}
-        else if(st.openTurn){var ok=v.legal[o.id];cls=ok?'legal':'no';dis=!ok;}
+        else if(v.phase==='play'){var ok=st.openTurn&&v.legal[o.id];cls=st.openTurn?(ok?'legal':'no'):'';dis=false;}
         inner+='<button type="button" class="cardbtn '+cls+'" data-act="open" data-id="'+o.id+'"'+(dis?' disabled':'')+' aria-label="Open kaart '+nm(o)+'">'+face(o)+'</button>';
       }else inner+=face(o);
     }
@@ -183,7 +183,7 @@ function render(){
   }else if(myTurn){
     if(picker){now='Kies de waarde van je '+(picker.card.k==='joker'?'joker':'scorekaart')+'.';sub=req();}
     else if(zone==='blind'){now='Jouw beurt. Speel een blinde kaart.';sub=req();}
-    else if(v.myMove&&!legalN){now='Je kunt niet spelen.';sub=req();acts='<button type="button" class="btn main" data-act="pickup">Pak de stapel ('+pn+')</button>';}
+    else if(v.myMove&&!legalN){now='Je kunt niet spelen.';sub=req();acts='<button type="button" class="btn main" data-act="pickup">Strekken ('+pn+')</button>';}
     else{now='Jouw beurt.';sub=req()+(zone==='open'?' Je speelt nu je open kaarten.':'');}
   }else{now=esc(v.players[v.turn].name)+' is aan de beurt.';sub=req();}
   var lg='';
@@ -197,7 +197,7 @@ function render(){
   keys.forEach(function(key,idx){
     var cs=groups[key],c=cs[0],cls='',dis=true;
     if(v.phase==='swap'){dis=me.ready;if(cs.some(function(x){return x.id===sel;}))cls='sel';}
-    else if(v.myMove&&zone==='hand'){var ok=v.legal[c.id];cls=ok?'legal':'no';dis=!ok;}
+    else if(v.phase==='play'){var mv=v.myMove&&zone==='hand',ok=mv&&v.legal[c.id];cls=mv?(ok?'legal':'no'):'';dis=false;}
     var stl=fanned?' style="--r:'+((idx-mid)*4).toFixed(1)+'deg;--y:'+(Math.abs(idx-mid)*Math.abs(idx-mid)*1.5).toFixed(1)+'px"':'';
     hh+='<button type="button" class="cardbtn '+cls+'" data-act="hand" data-id="'+c.id+'" data-ids=",'+cs.map(function(x){return x.id;}).join(',')+',"'+stl+(dis?' disabled':'')+' aria-label="'+nm(c)+(cs.length>1?', '+cs.length+' stuks':'')+'">'+(cs.length>1?'<span class="badge">×'+cs.length+'</span>':'')+face(c)+'</button>';
   });
@@ -256,6 +256,38 @@ function junkie(card){
     a.onfinish=function(){d.remove();};
   },520+i*55);})(i);}
   setTimeout(function(){card.classList.remove('junk');var s=card.querySelector('.c-syr');if(s)s.remove();},1800);
+}
+// Een rekbare arm schiet van de speler naar de stapel, grijpt hem en trekt hem terug.
+function stretchArm(S,P,ghost){
+  var box=document.createElement('div');box.className='armfx';
+  box.innerHTML='<svg width="100%" height="100%"><path class="a1"/><path class="a2"/><g class="hand"><g class="fing"><path d="M6 -9 L22 -15 M10 -3 L27 -5 M10 3 L27 5 M6 9 L22 15"/></g><path class="thumb" d="M0 -11 L6 -22"/><circle r="12"/></g></svg>';
+  $('fx').appendChild(box);
+  var a1=box.querySelector('.a1'),a2=box.querySelector('.a2'),hand=box.querySelector('.hand'),fing=box.querySelector('.fing');
+  var dx=P.x-S.x,dy=P.y-S.y,len=Math.sqrt(dx*dx+dy*dy)||1,px=-dy/len,py=dx/len,D=900,t0=null;
+  function ease(x){return 1-Math.pow(1-x,3);}function easeIn(x){return x*x*x;}
+  function frame(now){
+    if(t0===null)t0=now;var u=Math.min(1,(now-t0)/D);
+    var ext=u<.38?ease(u/.38):u<.5?1:1-easeIn((u-.5)/.5);
+    var ex=S.x+dx*ext,ey=S.y+dy*ext,amp=len*.2*Math.sin(u*Math.PI*3)*(1-u)*ext;
+    var cx=(S.x+ex)/2+px*amp,cy=(S.y+ey)/2+py*amp,d='M'+S.x+' '+S.y+' Q'+cx+' '+cy+' '+ex+' '+ey;
+    a1.setAttribute('d',d);a2.setAttribute('d',d);
+    var ang=Math.atan2(ey-cy,ex-cx)*180/Math.PI;
+    hand.setAttribute('transform','translate('+ex+' '+ey+') rotate('+ang+')');
+    fing.setAttribute('transform',u>.42?'scale(.45 .8)':'');
+    if(u>.5&&ghost){var k=(u-.5)/.5;ghost.style.transform='translate('+(ex-P.x)+'px,'+(ey-P.y)+'px) scale('+(1-.55*k)+')';ghost.style.opacity=String(1-k*.8);}
+    if(u<1)requestAnimationFrame(frame);else box.remove();
+  }
+  requestAnimationFrame(frame);
+}
+// 'Jammer joh': deze kaart kan nu niet.
+function nope(el){
+  if(!el||!el.getBoundingClientRect)return;Snd.play('nope');
+  var r=el.getBoundingClientRect(),d=document.createElement('div');d.className='nope';d.textContent='Jammer joh';
+  d.style.left=(r.left+r.width/2)+'px';d.style.top=r.top+'px';$('fx').appendChild(d);
+  if(!d.animate){setTimeout(function(){d.remove();},1100);return;}
+  var a=d.animate([{transform:'translate(-50%,-60%) scale(.4)',opacity:0},{transform:'translate(-50%,-115%) scale(1.08)',opacity:1,offset:.18},{transform:'translate(-50%,-120%) scale(1)',opacity:1,offset:.75},{transform:'translate(-50%,-150%) scale(.95)',opacity:0}],{duration:1100,easing:'ease-out',fill:'both'});
+  a.onfinish=function(){d.remove();};
+  var c=el.querySelector('.card');if(c&&motion)c.animate([{translate:'0'},{translate:'-7px'},{translate:'6px'},{translate:'-4px'},{translate:'0'}],{duration:320});
 }
 // Verkoolde kaarten vallen van de stapel in de glazen bak.
 function dropToBin(from,binR,n){
@@ -325,11 +357,10 @@ function runFx(pre,evs){
       },t+30);
       setTimeout(reset,t+1150);t+=1750;
     }else if(ev.t==='pick'){
-      showGhost();var tr=rectOf(seatEl(ev.pi))||pileR;
-      setTimeout(function(){
-        pfx.style.setProperty('--bd','480ms');pfx.style.setProperty('--px',(tr.left+tr.width/2-pileR.left-pileR.width/2)+'px');pfx.style.setProperty('--py',(tr.top+tr.height/2-pileR.top-pileR.height/2)+'px');
-        pfx.classList.add('go');void pfx.offsetWidth;pfx.classList.add('away');},t+30);
-      t+=540;setTimeout(reset,t);
+      showGhost();var sr=rectOf(seatEl(ev.pi))||pileR,P={x:pileR.left+pileR.width/2,y:pileR.top+pileR.height/2};
+      var S=ev.pi===v.you?{x:sr.left+sr.width/2,y:Math.min(sr.top+24,(window.innerHeight||800)+40)}:{x:sr.left+sr.width/2,y:sr.top+sr.height/2};
+      setTimeout(function(){stretchArm(S,P,pfx);},t+30);
+      t+=950;setTimeout(reset,t);
     }else if(ev.t==='draw'){
       ev.cards.forEach(function(c,i){
         var to,el=null,solo=false,cw;
@@ -379,6 +410,9 @@ var Snd=(function(){
     pick:function(c,t){noise(c,t,{type:'lowpass',f:700,f2:200,dur:.35,g:.4});tone(c,t,{f:110,f2:60,dur:.25,g:.25});},
     win:function(c,t){[523,659,784,1047].forEach(function(f,i){tone(c,t+i*.12,{type:'triangle',f:f,dur:i===3?.6:.2,g:.22});});},
     end:function(c,t){[392,330,262].forEach(function(f,i){tone(c,t+i*.16,{type:'triangle',f:f,dur:.3,g:.16});});},
+    nope:function(c,t){tone(c,t,{type:'triangle',f:233,f2:196,dur:.2,g:.2});tone(c,t+.2,{type:'triangle',f:185,f2:130,dur:.35,g:.2});},
+    stretch:function(c,t){tone(c,t,{f:160,f2:760,dur:.34,g:.22});noise(c,t,{f:900,f2:2400,dur:.3,q:2,g:.12});},
+    snap:function(c,t){tone(c,t,{f:760,f2:140,dur:.4,g:.2});},
     turn:function(c,t){tone(c,t,{f:1047,dur:.35,g:.15});tone(c,t+.08,{f:1568,dur:.3,g:.08});}
   };
   return{
@@ -398,7 +432,7 @@ function sfx(evs,wasMine){
       if(ev.t==='play'){if(wild)Snd.play('joker',land+120);else if(SP[ev.as])Snd.play(SP[ev.as],land);if(ev.junk)Snd.play('junk',land+500);}
       t+=400;if(ev.t==='flipfail')t+=520;if(wild&&ev.t!=='flipfail')t+=950;if(ev.junk)t+=1700;
     }else if(ev.t==='burn'){Snd.play('burn',t+30);Snd.play('bin',t+1550);t+=1750;}
-    else if(ev.t==='pick'){Snd.play('pick',t+30);t+=540;}
+    else if(ev.t==='pick'){Snd.play('stretch',t+30);Snd.play('pick',t+400);Snd.play('snap',t+480);t+=950;}
     else if(ev.t==='draw'){ev.cards.forEach(function(c,i){Snd.play('draw',t+i*90+250);});t+=340+90*(ev.cards.length-1);}
     else if(ev.t==='win'){Snd.play(ev.pi===v.you?'win':'end',t);}
   });
@@ -410,8 +444,9 @@ function myCard(id){
   var me=v.players[v.you],list=me.zone==='hand'?v.hand:me.zone==='open'?me.open:[];
   for(var i=0;i<list.length;i++)if(list[i].id===id)return list[i];return null;
 }
-function tryPlay(id){
-  if(!v.myMove||busy)return;var c=myCard(id);if(!c||!v.legal[id])return;
+function tryPlay(id,el){
+  if(busy)return;var c=myCard(id);
+  if(!v.myMove||!c||!v.legal[id]){nope(el);return;}
   if(c.k==='n'){if(send({t:'play',id:id,as:c.v}))busy=true;picker=null;}
   else{picker={card:c,values:v.legal[id]};pickSrc=lastSrc;}
 }
@@ -444,11 +479,11 @@ function act(d,el){
       if(v.phase==='swap'){var a=v.hand.filter(function(x){return x.id===id;})[0];
         var same=a&&v.hand.some(function(c){return c.id===sel&&(c.k==='n'?a.k==='n'&&c.v===a.v:c.k===a.k);});
         sel=same?null:id;}
-      else tryPlay(id);
+      else tryPlay(id,el);
       break;
     case'open':
       if(v.phase==='swap'){if(sel!==null){send({t:'swap',hand:sel,open:id});sel=null;}}
-      else tryPlay(id);
+      else tryPlay(id,el);
       break;
     case'blind':if(v.myMove&&!busy&&send({t:'blind',i:+d.i}))busy=true;break;
     case'pick':
