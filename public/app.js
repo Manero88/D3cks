@@ -14,6 +14,9 @@ function word(x){return x<=10?String(x):({11:'Boer',12:'Vrouw',13:'Heer',14:'Aas
 function nm(c,as){return c.k==='n'?word(c.v):(c.k==='joker'?'joker':'scorekaart')+(as?' als '+lab(as):'');}
 function store(k,val){try{if(val===null)localStorage.removeItem(k);else localStorage.setItem(k,val);}catch(e){}}
 function load(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+// De sessie hoort bij één tabblad, zodat twee tabbladen in dezelfde browser twee spelers kunnen zijn.
+function storeTab(val){try{if(val===null)sessionStorage.removeItem('d3cks-session');else sessionStorage.setItem('d3cks-session',val);}catch(e){}}
+function loadTab(){try{return sessionStorage.getItem('d3cks-session');}catch(e){return null;}}
 
 /* ---------- kaarten tekenen ---------- */
 function face(c,o){o=o||{};var wild=c.k!=='n',main=wild?(c.k==='joker'?'★':'✦'):lab(c.v);
@@ -42,10 +45,10 @@ function show(s){
   screen=s;['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
   if(s==='home')$('conn').hidden=true;
 }
-function goHome(){sess=null;lob=null;v=null;store('d3cks-session',null);setHash('');document.title='3Decks';show('home');}
+function goHome(){sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
 function setHash(code){try{history.replaceState(null,'',code?'#'+code:location.pathname+location.search);}catch(e){}}
 function onMsg(m){
-  if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};store('d3cks-session',JSON.stringify(sess));setHash(m.code);}
+  if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);}
   else if(m.t==='lobby'){lob=m;v=null;show('lobby');renderLobby();}
   else if(m.t==='state'){
     var pre={pile:$('pileBox').innerHTML},fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase==='swap');
@@ -345,8 +348,8 @@ $('code').addEventListener('input',function(){this.value=this.value.toUpperCase(
 ['name','code'].forEach(function(k){$(k).addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();act({act:k==='code'||$('code').value?'join':'host'});}});});
 $('name').value=load('d3cks-name')||'';
 var hash=(location.hash||'').slice(1).toUpperCase().replace(/[^A-Z]/g,'').slice(0,4);
-try{sess=JSON.parse(load('d3cks-session')||'null');}catch(e){sess=null;}
-if(sess&&hash&&sess.code!==hash){sess=null;store('d3cks-session',null);}
+try{sess=JSON.parse(loadTab()||'null');}catch(e){sess=null;}
+if(sess&&hash&&sess.code!==hash){sess=null;storeTab(null);}
 if(hash.length===4)$('code').value=hash;
 show('home');
 connect();
