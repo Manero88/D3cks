@@ -24,4 +24,20 @@ g=mk([5]);g.players[0].hand=H(8,14,9);g.turn=0;E.playCard(g,0,800);assert(g.turn
 g=mk([5]);g.turn=0;g.players[0].hand=H(9);assert(!E.takePile(g,0));
 // 5 spelers: twee 8'en slaan 2 over
 g=E.newGame(3,specs(5),0);E.begin(g);g.pile=[{c:{id:900,v:8,k:'n',d:1},as:8}];g.players[2].hand=H(8,14,9);g.turn=2;E.playCard(g,2,800);assert(g.turn===0);
+// saboteren: P1 (volgende) heeft nog één open kaart (9); bot P0 heeft 5 en V -> speelt V
+function endg(){const g=E.newGame(5,specs(3),0);E.begin(g);g.deck=[];g.endgame=true;g.players.forEach(p=>{p.drew=true;});return g;}
+g=endg();g.pile=[{c:{id:900,v:4,k:'n',d:1},as:4}];g.turn=0;
+g.players[0].hand=H(5,12);g.players[0].open=[];g.players[0].blind=[];
+g.players[1].hand=[];g.players[1].open=[{id:700,v:9,k:'n',d:1}];g.players[1].blind=[];
+E.botTurn(g);assert.strictEqual(g.pile[g.pile.length-1].as,12,'blokkeert met de Q');
+// met een 8 slaat de bot de dreigende speler over
+g=endg();g.pile=[{c:{id:900,v:4,k:'n',d:1},as:4}];g.turn=0;
+g.players[0].hand=H(5,8,14);g.players[0].open=[];g.players[0].blind=[];
+g.players[1].hand=[];g.players[1].open=[];g.players[1].blind=[{id:701,v:3,k:'n',d:1}];
+E.botTurn(g);assert.strictEqual(g.pile[g.pile.length-1].as,8,'slaat over met de 8');
+// onbekende laatste kaart: zo hoog mogelijk, geen 2
+g=endg();g.pile=[{c:{id:900,v:4,k:'n',d:1},as:4}];g.turn=0;
+g.players[0].hand=H(2,5,13);g.players[0].open=[];g.players[0].blind=[];
+g.players[1].hand=[];g.players[1].open=[];g.players[1].blind=[{id:701,v:3,k:'n',d:1}];
+E.botTurn(g);assert.strictEqual(g.pile[g.pile.length-1].as,13,'speelt hoog');
 console.log('engine ok');

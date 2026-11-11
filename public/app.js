@@ -65,9 +65,9 @@ function onMsg(m){
   else if(m.t==='lobby'){lob=m;v=null;show('lobby');renderLobby();}
   else if(m.t==='state'){
     var fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase==='swap'),pre={pile:$('pileBox').innerHTML,burned:fresh||!v?0:v.burned},wasMine=!!(v&&v.myMove);
-    v=m.v;busy=false;show('game');
+    var pv=fresh?null:v;v=m.v;busy=false;show('game');
     if(fresh){sel=null;picker=null;if(motion){$('app').classList.add('dealing');setTimeout(function(){$('app').classList.remove('dealing');},900);}}
-    render();runFx(pre,m.fx||[]);sfx(m.fx||[],wasMine);
+    render();runFx(pre,m.fx||[]);announce(pv,v,sfx(m.fx||[],wasMine));
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
   else if(m.t==='left')goHome();
@@ -149,7 +149,7 @@ function render(){
     else p.backs.forEach(function(d,j){fan+=back(d,'',' style="--r:'+((j-m)*8).toFixed(1)+'deg"');});
     var where=p.out?'Ligt uit het spel':v.phase==='swap'?(p.ready?'Klaar':'Legt kaarten goed'):v.endgame&&p.zone==='open'?'Speelt open kaarten':v.endgame&&p.zone==='blind'?'Speelt blinde kaarten':'';
     oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h"><span class="nm">'+esc(p.name)+'</span>'+(p.bot?'<span class="tag">bot</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
-      (turn?'<span class="pill">aan de beurt</span>':'')+(v.winner===i?'<span class="pill">winnaar</span>':'')+'</div>'+
+      (turn?'<span class="pill">aan de beurt</span>':'')+(lastOne(p)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===i?'<span class="pill">winnaar</span>':'')+'</div>'+
       '<div class="seat-row sm"><div class="tbl">'+slotsHtml(p,false,st)+'</div><div class="handinfo">'+(rh?'':'<span class="fan">'+fan+'</span>')+'<span><b>'+p.n+'</b> in hand</span></div></div>'+(rh?'<div class="rhand sm" aria-label="Hand van '+esc(p.name)+'">'+rh+'</div>':'')+
       (where?'<div class="tag">'+where+'</div>':'')+'</div>';
   }
@@ -209,9 +209,39 @@ function render(){
     pk+='</div>'+(picker.blind?'':'<div><button type="button" class="btn" data-act="cancel">Toch een andere kaart</button></div>')+'</div>';
   }
   $('me').className='seat me'+(myTurn?' turn':'')+(me.out?' out':'');
-  $('me').innerHTML='<div class="seat-h"><span class="nm">'+esc(me.name)+'</span><span class="tag">jij</span>'+(myTurn?'<span class="pill">aan de beurt</span>':'')+(v.winner===you?'<span class="pill">winnaar</span>':'')+'</div>'+pk+
+  $('me').innerHTML='<div class="seat-h"><span class="nm">'+esc(me.name)+'</span><span class="tag">jij</span>'+(myTurn?'<span class="pill">aan de beurt</span>':'')+(lastOne(me)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===you?'<span class="pill">winnaar</span>':'')+'</div>'+pk+
     '<div class="me-row"><div class="zone"><span class="zl">Op tafel: open op blind</span>'+slotsHtml(me,true,st)+'</div>'+
     '<div class="zone" style="flex:1 1 220px"><span class="zl">Hand · '+v.hand.length+'</span><div class="hand">'+hh+'</div></div></div>';
+}
+
+/* ---------- grote meldingen ---------- */
+function cardsLeft(p,vv){return(vv||v).deck>0?99:p.n+p.open.length+p.blind.length;}
+function lastOne(p){return v.phase==='play'&&!p.out&&cardsLeft(p)===1;}
+var bannerQ=[],bannerBusy=false;
+// Vergelijkt het vorige en nieuwe spelbeeld en zet meldingen klaar voor na de animaties.
+function announce(pv,nv,delay){
+  if(!pv||nv.phase!=='play'&&nv.phase!=='over')return;
+  var q=[];
+  if(!pv.endgame&&nv.endgame)q.push({big:'Endgame!',small:'Het deck is leeg. Speel je hand leeg, dan je tafelkaarten.',hot:true});
+  nv.players.forEach(function(p,i){
+    var o=pv.players[i];if(!o||p.out||nv.phase!=='play')return;
+    var me=i===nv.you,wie=me?'Jij':p.name;
+    if(nv.endgame&&o.zone==='hand'&&p.zone==='open')q.push({big:me?'Jouw endgame!':wie+' is bij de endgame',small:(me?'Je speelt':wie+' speelt')+' nu de open kaarten op tafel.'});
+    else if(nv.endgame&&o.zone!=='blind'&&p.zone==='blind')q.push({big:me?'Blind spelen!':wie+' speelt blind',small:(me?'Je speelt':wie+' speelt')+' nu de blinde kaarten.'});
+    if(cardsLeft(p,nv)===1&&cardsLeft(o,pv)!==1)q.push({big:'Laatste kaart!',small:(me?'Jij hebt':wie+' heeft')+' nog maar één kaart.'+(me?'':' Hou hem tegen!'),hot:true});
+  });
+  if(!q.length)return;
+  setTimeout(function(){bannerQ=bannerQ.concat(q);nextBanner();},Math.max(0,delay||0));
+}
+function nextBanner(){
+  if(bannerBusy||!bannerQ.length)return;bannerBusy=true;
+  var b=bannerQ.shift(),d=document.createElement('div');d.className='banner'+(b.hot?' hot':'');d.setAttribute('role','status');
+  d.innerHTML='<strong>'+esc(b.big)+'</strong><span>'+esc(b.small)+'</span>';$('fx').appendChild(d);
+  Snd.play(b.hot?'alarm':'fanfare');
+  var done=function(){d.remove();bannerBusy=false;nextBanner();};
+  if(!d.animate||!motion){setTimeout(done,2000);return;}
+  var a=d.animate([{transform:'translate(-50%,-50%) scale(.4) rotate(-6deg)',opacity:0},{transform:'translate(-50%,-50%) scale(1.08) rotate(-2deg)',opacity:1,offset:.12},{transform:'translate(-50%,-50%) scale(1) rotate(-2deg)',opacity:1,offset:.22},{transform:'translate(-50%,-50%) scale(1) rotate(-2deg)',opacity:1,offset:.82},{transform:'translate(-50%,-70%) scale(.92) rotate(-2deg)',opacity:0}],{duration:1900,easing:'ease-out',fill:'both'});
+  a.onfinish=done;
 }
 
 /* ---------- animaties ---------- */
@@ -413,6 +443,8 @@ var Snd=(function(){
     nope:function(c,t){tone(c,t,{type:'triangle',f:233,f2:196,dur:.2,g:.2});tone(c,t+.2,{type:'triangle',f:185,f2:130,dur:.35,g:.2});},
     stretch:function(c,t){tone(c,t,{f:160,f2:760,dur:.34,g:.22});noise(c,t,{f:900,f2:2400,dur:.3,q:2,g:.12});},
     snap:function(c,t){tone(c,t,{f:760,f2:140,dur:.4,g:.2});},
+    alarm:function(c,t){[0,.22,.44].forEach(function(d){tone(c,t+d,{type:'square',f:880,dur:.1,g:.07});tone(c,t+d+.11,{type:'square',f:660,dur:.1,g:.07});});},
+    fanfare:function(c,t){[392,523,659].forEach(function(f,i){tone(c,t+i*.1,{type:'triangle',f:f,dur:i===2?.4:.15,g:.18});});},
     turn:function(c,t){tone(c,t,{f:1047,dur:.35,g:.15});tone(c,t+.08,{f:1568,dur:.3,g:.08});}
   };
   return{
@@ -437,6 +469,7 @@ function sfx(evs,wasMine){
     else if(ev.t==='win'){Snd.play(ev.pi===v.you?'win':'end',t);}
   });
   if(v.myMove&&!wasMine)Snd.play('turn',t+150);
+  return t;
 }
 
 /* ---------- acties ---------- */

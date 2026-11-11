@@ -84,7 +84,7 @@ function refill(g,pi){
   const p=g.players[pi],got=[];
   while(p.hand.length<3&&g.deck.length){const c=g.deck.pop();p.hand.push(c);got.push(c);p.drew=true;}
   if(got.length)fxp(g,{t:'draw',pi:pi,cards:got});
-  if(!g.deck.length&&!g.endgame){g.endgame=true;say(g,'Het deck is leeg. De endgame begint.','end');}
+  if(!g.deck.length&&!g.endgame){g.endgame=true;fxp(g,{t:'endgame'});say(g,'Het deck is leeg. De endgame begint.','end');}
 }
 function place(g,pi,card,as,pre,from){
   const p=g.players[pi],wasEmpty=g.pile.length===0;
@@ -147,9 +147,45 @@ function botWild(g){
   if(g.sevenBy!==null&&vals.indexOf(6)>=0)return 6;
   return vals.indexOf(14)>=0?14:vals[vals.length-1];
 }
+// --- Saboteren: heeft een tegenstander nog maar één kaart, dan probeert de bot hem tegen te houden. ---
+// De bot gebruikt alleen wat aan tafel zichtbaar is: een open kaart is bekend, een blinde of handkaart niet.
+function cardsLeft(p){return p.hand.length+p.open.length+p.blind.length;}
+function seatAfter(g,pi,steps){const n=g.players.length;let i=pi;for(let s=0;s<steps;s++){do{i=(i+g.dir+n)%n;}while(g.players[i].out);}return i;}
+function threatInfo(g,pi){
+  if(!g.endgame)return null;
+  if(!g.players.some(function(p,i){return i!==pi&&!p.out&&cardsLeft(p)===1;}))return null;
+  const nx=seatAfter(g,pi,1),q=g.players[nx];
+  if(nx===pi||cardsLeft(q)!==1)return{next:false};
+  const k=zoneOf(q)==='open'?q.open[0]:null;
+  return{next:true,known:k?(k.k==='n'?k.v:'wild'):null};
+}
+// Kan een bekende kaart x niet meer gespeeld worden nadat de bot `as` heeft gelegd?
+function blocks(g,as,x){
+  if(x===2||x===10)return false;
+  if(as===7)return x>7;
+  if(g.sevenBy!==null&&as<7)return x<as||x>7;
+  return x<as&&!(x===7&&as<=7);
+}
+function threatScore(g,p,as,th){
+  if(as===2)return 500;                                    // geeft de volgende een vrije zet
+  if(as===8&&g.sevenBy===null&&th.next)return -200;        // de dreigende speler overslaan
+  if(as===10&&g.pile.length)return cardsLeft(p)>1?-150:-1000; // verbranden en zelf opnieuw
+  const str=as===7?11.5:as;
+  if(!th.next)return 20-str;
+  if(th.known==='wild')return 20-str;
+  if(typeof th.known==='number')return blocks(g,as,th.known)?-100+as*.1:100+as;
+  return -str*3;                                          // onbekend: zo hoog mogelijk
+}
 function botChoose(g,pi){
   const opts=options(g,pi);if(!opts.length)return null;
-  const top=topVal(g),run=runLen(g),empty=!g.pile.length;let best=null;
+  const top=topVal(g),run=runLen(g),empty=!g.pile.length,th=threatInfo(g,pi);let best=null;
+  if(th){
+    opts.forEach(function(o){o.values.forEach(function(as){
+      const sc=threatScore(g,g.players[pi],as,th)+(o.card.k!=='n'?5:0)+rnd(g)*4;
+      if(!best||sc<best.score)best={card:o.card,as:as,score:sc};
+    });});
+    return best;
+  }
   opts.forEach(function(o){
     const c=o.card;let as,score;
     if(c.k!=='n'){as=botWild(g);score=(run===3&&as===top)?-9:60;}
@@ -168,6 +204,6 @@ function botTurn(g){
   if(zoneOf(p)==='blind'){if(flipBlind(g,pi,Math.floor(rnd(g)*p.blind.length))==='wild')resolveBlind(g,botWild(g));return;}
   const m=botChoose(g,pi);if(!m)takePile(g,pi);else playCard(g,pi,m.card.id,m.as);
 }
-return{lab:lab,word:word,newGame:newGame,swap:swap,begin:begin,topVal:topVal,runLen:runLen,canValue:canValue,wildValues:wildValues,zoneOf:zoneOf,options:options,playCard:playCard,takePile:takePile,flipBlind:flipBlind,resolveBlind:resolveBlind,botTurn:botTurn,jokerInPile:jokerInPile};
+return{cardsLeft:cardsLeft,lab:lab,word:word,newGame:newGame,swap:swap,begin:begin,topVal:topVal,runLen:runLen,canValue:canValue,wildValues:wildValues,zoneOf:zoneOf,options:options,playCard:playCard,takePile:takePile,flipBlind:flipBlind,resolveBlind:resolveBlind,botTurn:botTurn,jokerInPile:jokerInPile};
 })();
 if(typeof module!=='undefined')module.exports=E;
