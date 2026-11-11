@@ -51,7 +51,7 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   x.send({ t: 'join', code, name: 'Laat' }); await wait(() => x.errors.length === 2); // spel al begonnen
   // geheimhouding: niemand ziet handen of blinde kaarten van een ander
   a.v.players.forEach(p => assert(!('hand' in p))); a.v.players.forEach(p => p.blind.forEach(d => assert(typeof d === 'number')));
-  assert.strictEqual(a.v.hand.length, 3);
+  assert.strictEqual(a.msgs.find(m => m.t === 'state').v.hand.length, 3); // eerste zicht: 3 handkaarten
   // verbinding kwijt en terugkomen
   await wait(() => a.v.phase === 'play' && a.v.log.length > 2);
   b.ws.close();
