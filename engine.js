@@ -1,8 +1,8 @@
 // 3Decks spelregels. Bron van waarheid: de skill 3decks-regels.
 const E=(function(){
 'use strict';
-function lab(v){return v<=10?String(v):({11:'B',12:'V',13:'H',14:'A'})[v];}
-function word(v){return v<=10?'een '+v:({11:'een Boer',12:'een Vrouw',13:'een Heer',14:'een Aas'})[v];}
+function lab(v){return v<=10?String(v):({11:'J',12:'Q',13:'K',14:'A'})[v];}
+function word(v){return v<=10?'een '+v:({11:'een J',12:'een Q',13:'een K',14:'een aas'})[v];}
 function rnd(g){g.rs=(g.rs+0x6D2B79F5)|0;let t=g.rs;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;}
 function shuffle(g,a){for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd(g)*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}}
 function say(g,t,k){g.log.push({t:t,k:k||'',n:++g.n});if(g.log.length>60)g.log.shift();}

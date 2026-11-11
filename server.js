@@ -84,6 +84,7 @@ function broadcastLobby(room) { room.players.forEach(p => { if (!p.bot) send(p.w
 function view(room, pi) {
   const g = room.g, me = g.players[pi];
   const myMove = g.phase === 'play' && g.turn === pi && !g.pendingBlind;
+  const reveal = g.phase === 'over';
   const legal = {};
   if (myMove) E.options(g, pi).forEach(o => { legal[o.card.id] = o.values; });
   return {
@@ -95,7 +96,9 @@ function view(room, pi) {
     players: g.players.map((p, i) => {
       const rp = room.players[i];
       return { name: p.name, bot: rp.bot, away: !rp.bot && (!rp.connected || rp.left), out: p.out, ready: rp.ready,
-        n: p.hand.length, backs: p.hand.slice(0, 7).map(c => c.d), open: p.open, blind: p.blind.map(c => c.d), zone: E.zoneOf(p) };
+        n: p.hand.length, backs: p.hand.slice(0, 7).map(c => c.d), open: p.open, zone: E.zoneOf(p),
+        // Aan het eind van het potje gaat alles open: blinde kaarten en handen van iedereen.
+        blind: reveal ? p.blind : p.blind.map(c => c.d), cards: reveal ? p.hand : null };
     }),
     hand: me.hand, legal, myMove,
     pending: g.pendingBlind && g.pendingBlind.pi === pi ? { c: g.pendingBlind.c, values: E.wildValues(g) } : null,
@@ -107,11 +110,13 @@ function fxFor(fx, pi) {
 }
 function fxDuration(fx) {
   let t = 0;
-  fx.forEach(ev => { t += ev.t === 'play' ? (ev.c.k !== 'n' ? 1350 : 400) : ev.t === 'open' ? 400 : ev.t === 'flipfail' ? 920 : ev.t === 'burn' ? 1150 : ev.t === 'pick' ? 540 : ev.t === 'draw' ? 340 : 0; });
+  fx.forEach(ev => { t += ev.t === 'play' ? (ev.c.k !== 'n' ? 1350 : 400) + (ev.junk ? 1700 : 0) : ev.t === 'open' ? 400 : ev.t === 'flipfail' ? 920 : ev.t === 'burn' ? 1150 : ev.t === 'pick' ? 540 : ev.t === 'draw' ? 340 : 0; });
   return t;
 }
 function broadcastState(room) {
   const g = room.g, fx = g.fx; g.fx = [];
+  // Soms verandert een gespeelde J even in een spuit. De server beslist, zodat iedereen hetzelfde ziet.
+  fx.forEach(ev => { if (ev.t === 'play' && ev.as === 11 && ev.junk === undefined) ev.junk = Math.random() < 0.35; });
   room.players.forEach((p, i) => { if (!p.bot && p.connected) send(p.ws, { t: 'state', v: view(room, i), fx: fxFor(fx, i) }); });
   return fxDuration(fx);
 }

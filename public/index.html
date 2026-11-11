@@ -14,7 +14,7 @@
   --table:#e2e7ee; --panel:#d0d8e3; --paper:#fdfdfb; --paper2:#e9edf2; --ink:#151c2a; --muted:#536074; --line:#b4bfce;
   --felt:#2f4669; --felt-hi:#3f5d8a; --rim:#1f2f48; --on-felt:#e6edf7;
   --edge:#cfd5de; --edge2:#a9b2bf; --shadow:rgba(16,24,40,.28);
-  --d1:#2552c4; --d2:#c5362f; --d3:#99660a; --back-ink:#ffffff; --ok:#17794a; --hot:#b3421a; --ember:#f08a24; --ember-hi:#ffd54a; --char:#1d130c;
+  --d1:#2552c4; --d2:#c5362f; --d3:#99660a; --back-ink:#ffffff; --ok:#17794a; --hot:#b3421a; --ember:#f08a24; --ember-hi:#ffd54a; --char:#1d130c; --goo:#6aa82e;
   --font-d:'Bricolage Grotesque','Trebuchet MS','Segoe UI',sans-serif;
   --font-b:'DM Sans','Segoe UI',system-ui,sans-serif;
   --cw:clamp(50px,13vw,66px);
@@ -95,6 +95,19 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .landed>.ic-8 svg{animation:skipa .7s ease-out} @keyframes skipa{0%{transform:translateX(-80%);opacity:0}60%{transform:translateX(25%);opacity:1}100%{transform:none}}
 .landed>.ic-10 svg{animation:flare .6s ease-out} @keyframes flare{0%{transform:scale(2.3)}100%{transform:none}}
 .sm .c-ic,.sm .c-mini{display:none}
+.c-syr{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;color:var(--dc)}
+.c-syr svg{width:84%;overflow:visible;transform:rotate(-32deg);animation:syrin 1.7s ease-in-out both}
+.c-syr .liq{fill:var(--goo);transform-box:fill-box;transform-origin:100% 50%;animation:liq 1.7s ease-in-out both}
+.c-syr .pl{animation:plunge 1.7s ease-in-out both}
+.junk>.c-main{animation:jout 1.7s ease-in-out both}
+@keyframes jout{0%{opacity:1}12%,82%{opacity:0;scale:.3;rotate:-40deg}100%{opacity:1}}
+@keyframes syrin{0%{opacity:0;scale:.3}16%,80%{opacity:1;scale:1}100%{opacity:0;scale:.4}}
+@keyframes plunge{0%,28%{transform:none}66%,100%{transform:translateX(13px)}}
+@keyframes liq{0%,28%{transform:none}66%,100%{transform:scaleX(.08)}}
+.drop{position:fixed;width:7px;height:9px;border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;background:var(--goo);pointer-events:none}
+.rhand{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.revealed{animation:flipin .6s cubic-bezier(.3,.7,.3,1.2) var(--rd,0s) both}
+@keyframes flipin{from{rotate:y 90deg;opacity:.3}}
 .c-tag.wm{font-family:var(--font-d);font-weight:800;letter-spacing:.04em;opacity:.8}
 .c-tag.wm b{color:var(--dc);font-size:1.35em}
 .card.back{background:linear-gradient(160deg,var(--dc),color-mix(in srgb,var(--dc) 72%,#000));border-color:transparent;color:var(--back-ink);overflow:hidden}
@@ -237,7 +250,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
 .rules b{color:var(--ink)}
 .conn{position:fixed;left:50%;top:max(10px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--hot);color:var(--paper);font-weight:700;border-radius:999px;padding:6px 14px;box-shadow:0 6px 14px var(--shadow);white-space:nowrap}
 @media (max-width:700px){ .lobby-grid{grid-template-columns:minmax(0,1fr)} }
-@media (prefers-reduced-motion:reduce){ .herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*{animation:none} }
+@media (prefers-reduced-motion:reduce){ .herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*,.revealed,.junk>.c-main,.c-syr{animation:none} .c-syr{display:none} }
 </style>
 </head>
 <body>

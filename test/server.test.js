@@ -62,6 +62,10 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   const bad = client(port); await bad.open; bad.send({ t: 'rejoin', code, pid: b.sess.pid, token: 'fout' }); await wait(() => bad.errors.length === 1);
   await wait(() => a.v.phase === 'over', 60000);
   assert(a.v.winner !== null && b2.v.phase === 'over');
+  // na afloop is alles zichtbaar; tijdens het spel niet
+  assert(a.v.players.every(p => p.blind.every(c => typeof c === 'object') && Array.isArray(p.cards)));
+  const during = a.msgs.filter(m => m.t === 'state' && m.v.phase === 'play').pop().v;
+  assert(during.players.every(p => p.cards === null && p.blind.every(d => typeof d === 'number')));
   b2.send({ t: 'again' }); await new Promise(r => setTimeout(r, 50)); assert(a.v.phase === 'over'); // niet de host
   a.send({ t: 'again' }); await wait(() => a.v.phase !== 'over');
   // tegen bots
