@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>3Decks</title>
+<meta name="description" content="3Decks: het kaartspel met drie decks. Host een spel, deel de code en speel met 3 tot 8 spelers.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232552c4'/%3E%3Ctext x='16' y='24' font-size='22' font-weight='800' font-family='Arial' text-anchor='middle' fill='white'%3E3%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
+<style>
+/* Layout: the two bots on top, a tilted 3D table with deck and pile in the middle, your own cards at the bottom. The three decks are three ink colours, every card carries the D3CKS mark. */
+:root{
+  --table:#e2e7ee; --panel:#d0d8e3; --paper:#fdfdfb; --paper2:#e9edf2; --ink:#151c2a; --muted:#536074; --line:#b4bfce;
+  --felt:#2f4669; --felt-hi:#3f5d8a; --rim:#1f2f48; --on-felt:#e6edf7;
+  --edge:#cfd5de; --edge2:#a9b2bf; --shadow:rgba(16,24,40,.28);
+  --d1:#2552c4; --d2:#c5362f; --d3:#99660a; --back-ink:#ffffff; --ok:#17794a; --hot:#b3421a; --ember:#f08a24;
+  --font-d:'Bricolage Grotesque','Trebuchet MS','Segoe UI',sans-serif;
+  --font-b:'DM Sans','Segoe UI',system-ui,sans-serif;
+  --cw:clamp(50px,13vw,66px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --table:#0e1520; --panel:#18222f; --paper:#27344a; --paper2:#1e293b; --ink:#eef1f6; --muted:#9ba8ba; --line:#3a4960;
+  --felt:#1a2a45; --felt-hi:#243a5e; --rim:#080e19; --on-felt:#dfe7f3;
+  --edge:#141d2b; --edge2:#0a111c; --shadow:rgba(0,0,0,.55);
+  --d1:#86a8ff; --d2:#ff8178; --d3:#f1ba4e; --back-ink:#0e1520; --ok:#4fc890; --hot:#ff9a6b; --ember:#ffb347; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --table:#0e1520; --panel:#18222f; --paper:#27344a; --paper2:#1e293b; --ink:#eef1f6; --muted:#9ba8ba; --line:#3a4960;
+  --felt:#1a2a45; --felt-hi:#243a5e; --rim:#080e19; --on-felt:#dfe7f3;
+  --edge:#141d2b; --edge2:#0a111c; --shadow:rgba(0,0,0,.55);
+  --d1:#86a8ff; --d2:#ff8178; --d3:#f1ba4e; --back-ink:#0e1520; --ok:#4fc890; --hot:#ff9a6b; --ember:#ffb347; color-scheme:dark }
+
+*{box-sizing:border-box}
+html{color-scheme:light}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-family:var(--font-b);font-size:15px;line-height:1.45}
+.app{max-width:960px;margin:0 auto;padding-block:max(14px,env(safe-area-inset-top,0px)) 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+.mark{margin:0;color:var(--ink);font:800 30px/1 var(--font-d);letter-spacing:-.02em;display:flex;align-items:baseline}
+.mark b{font-size:1.35em;color:var(--d2);display:inline-block;transform:rotate(-8deg) translateY(2px);margin:0 1px;text-shadow:1.5px 1.5px 0 var(--table),3px 3px 0 var(--d1)}
+.tools{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:700 14px var(--font-b);color:var(--ink);background:transparent;border:1.5px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;min-height:38px}
+.btn:hover{border-color:var(--ink)}
+.btn.main{background:var(--ink);color:var(--table);border-color:var(--ink);padding:10px 16px;box-shadow:0 3px 0 var(--muted)}
+.btn.main:active{transform:translateY(2px);box-shadow:0 1px 0 var(--muted)}
+.btn:focus-visible,.cardbtn:focus-visible,.val:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip b{color:var(--ink);font-weight:700}
+.chip.hot{border-color:var(--hot);color:var(--hot)} .chip.hot b{color:var(--hot)}
+
+.opps{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.seat{background:var(--panel);border:2px solid transparent;border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.seat.turn{border-color:var(--ink);animation:glow 1.7s ease-in-out infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ink) 0%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--ink) 16%,transparent)}}
+.seat.out{opacity:.5}
+.seat-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.nm{font:700 17px/1.1 var(--font-d)}
+.tag{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.pill{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--table);border-radius:999px;padding:2px 8px}
+.seat-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 18px}
+.handinfo{display:flex;align-items:flex-end;gap:10px;color:var(--muted);font-size:13px}
+.handinfo b{color:var(--ink);font:700 18px var(--font-d);font-variant-numeric:tabular-nums}
+.fan{display:flex;padding:4px 8px 0;min-height:48px;align-items:flex-end}
+.fan .card{margin-left:-20px;transform-origin:50% 120%;transform:rotate(var(--r,0deg))} .fan .card:first-child{margin-left:0}
+
+/* cards */
+.card{width:var(--cw);aspect-ratio:5/7;border-radius:calc(var(--cw)*.13);background:linear-gradient(155deg,var(--paper) 50%,var(--paper2));border:1px solid var(--line);position:relative;display:grid;place-items:center;color:var(--dc);font-family:var(--font-d);font-weight:800;flex:none;user-select:none;
+  box-shadow:0 1.5px 0 var(--edge),0 3px 0 var(--edge2),0 7px 12px var(--shadow)}
+.card::before{content:"";position:absolute;inset:6%;border-radius:calc(var(--cw)*.08);border:1px solid color-mix(in srgb,var(--dc) 28%,transparent);pointer-events:none}
+.d1{--dc:var(--d1)} .d2{--dc:var(--d2)} .d3{--dc:var(--d3)}
+.c-main{font-size:calc(var(--cw)*.5);line-height:1;letter-spacing:-.03em;text-shadow:0 calc(var(--cw)*.025) 0 color-mix(in srgb,var(--dc) 25%,transparent)}
+.c-corner{position:absolute;top:9%;left:12%;font-size:calc(var(--cw)*.19);line-height:1}
+.c-tag{position:absolute;bottom:10%;left:0;right:0;text-align:center;font:700 calc(var(--cw)*.125)/1 var(--font-b);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.c-tag.wm{font-family:var(--font-d);font-weight:800;letter-spacing:.04em;opacity:.8}
+.c-tag.wm b{color:var(--dc);font-size:1.35em}
+.card.back{background:linear-gradient(160deg,var(--dc),color-mix(in srgb,var(--dc) 72%,#000));border-color:transparent;color:var(--back-ink);overflow:hidden}
+.card.back::before{border:1.5px solid color-mix(in srgb,var(--back-ink) 60%,transparent)}
+.card.back::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 5px,color-mix(in srgb,var(--back-ink) 9%,transparent) 5px 6px);pointer-events:none}
+.bwm{font:800 calc(var(--cw)*.25)/1 var(--font-d);letter-spacing:.01em;transform:rotate(-58deg);white-space:nowrap;display:flex;align-items:center;color:color-mix(in srgb,var(--back-ink) 82%,transparent)}
+.bwm b{font-size:1.9em;color:var(--back-ink);margin:0 .02em;text-shadow:0 calc(var(--cw)*.03) 0 color-mix(in srgb,#000 30%,transparent)}
+.card.ghost{background:transparent;border:1.5px dashed var(--line);box-shadow:none;color:var(--muted)} .card.ghost::before{display:none}
+.sm{--cw:34px} .sm .c-tag,.sm .c-corner{display:none} .sm .card{box-shadow:0 1px 0 var(--edge),0 2px 0 var(--edge2),0 4px 6px var(--shadow)}
+.lg{--cw:clamp(84px,23vw,104px)}
+
+.slots{display:flex;gap:calc(var(--cw)*.2);padding-top:9px}
+.slot{display:grid}
+.slot>*{grid-area:1/1}
+.slot .under{transform:translateY(-9px)}
+.cardbtn{appearance:none;border:0;background:none;padding:0;margin:0;position:relative;cursor:pointer;border-radius:calc(var(--cw)*.13);color:inherit;font:inherit;transform-origin:50% 130%;
+  transform:rotate(var(--r,0deg)) translateY(calc(var(--y,0px) + var(--ty,0px))) scale(var(--sc,1));transition:transform .16s cubic-bezier(.2,.8,.3,1.3)}
+.cardbtn:disabled{cursor:default}
+.cardbtn.legal{--ty:-8px}
+.cardbtn.legal .card{border-color:var(--ok);box-shadow:0 0 0 2px var(--ok),0 3px 0 var(--edge2),0 12px 16px var(--shadow)}
+@media (hover:hover){ .cardbtn:not(:disabled):hover{--ty:-16px;--sc:1.07;z-index:2} }
+.cardbtn:not(:disabled):active{--ty:-4px;--sc:.98}
+.cardbtn.no{opacity:.42}
+.cardbtn.sel{--ty:-12px} .cardbtn.sel .card{box-shadow:0 0 0 3px var(--ink),0 12px 16px var(--shadow);border-color:var(--ink)}
+.cardbtn.target .card{box-shadow:0 0 0 2px var(--ink),0 7px 12px var(--shadow)}
+.badge{position:absolute;top:-8px;right:-8px;background:var(--ink);color:var(--table);font:700 12px/1 var(--font-b);border-radius:999px;min-width:22px;height:22px;display:grid;place-items:center;padding:0 6px;font-variant-numeric:tabular-nums;z-index:1}
+
+/* the table */
+.mid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:8px 26px;align-items:center}
+.tablewrap{perspective:900px;perspective-origin:50% 0%;padding:0 4px 18px}
+.felt{background:radial-gradient(ellipse at 50% 20%,var(--felt-hi),var(--felt) 75%);border-radius:30px;padding:30px 18px 20px;display:flex;align-items:flex-end;justify-content:center;gap:clamp(22px,6vw,48px);
+  transform:rotateX(24deg);transform-origin:50% 100%;transform-style:preserve-3d;
+  box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--on-felt) 14%,transparent),inset 0 10px 30px color-mix(in srgb,#000 22%,transparent),0 12px 0 var(--rim),0 30px 34px var(--shadow)}
+.stack{display:flex;flex-direction:column;align-items:center;gap:32px;transform-style:preserve-3d}
+.cap{font-size:12.5px;color:color-mix(in srgb,var(--on-felt) 75%,transparent);font-variant-numeric:tabular-nums} .cap b{color:var(--on-felt)}
+.felt .card.ghost{border-color:color-mix(in srgb,var(--on-felt) 40%,transparent)}
+.pilewrap{display:grid;transform-style:preserve-3d}
+.pilewrap>*{grid-area:1/1}
+.pile{display:grid;padding:6px 16px;transform-style:preserve-3d}
+.pile>*{grid-area:1/1}
+.fxpile{pointer-events:none;transition:none}
+.fxpile.burning .card{animation:burn var(--bd,.6s) ease-in forwards}
+.fxpile.burning .card:nth-last-child(2){animation-delay:.05s} .fxpile.burning .card:nth-last-child(3){animation-delay:.1s}
+@keyframes burn{0%{filter:none}30%{filter:brightness(1.5) sepia(1) saturate(4) hue-rotate(-20deg);box-shadow:0 0 30px 10px var(--ember)}100%{filter:brightness(.3) sepia(1);transform:translateY(-46px) rotate(14deg) scale(.55);opacity:0}}
+.fxpile.go{transition:transform var(--bd,.48s) cubic-bezier(.5,0,.8,.4),opacity var(--bd,.48s) ease-in}
+.fxpile.away{transform:translate(var(--px,0px),var(--py,200px)) scale(.4);opacity:0}
+.info{min-width:0;display:flex;flex-direction:column;gap:8px}
+.now{font:700 21px/1.2 var(--font-d);margin:0;text-wrap:balance}
+.sub{margin:0;color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:13.5px;color:var(--muted)}
+.log li:first-child{color:var(--ink)}
+.log li.burn:first-child,.log li.pick:first-child{color:var(--hot)}
+
+.me{gap:12px}
+.me-row{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:flex-end}
+.zone{display:flex;flex-direction:column;gap:8px;min-width:0}
+.zl{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.hand{display:flex;flex-wrap:wrap;gap:14px 10px;padding:12px 4px 2px}
+.picker{border:2px solid var(--ink);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--table);animation:pop .18s ease-out}
+@keyframes pop{from{transform:scale(.96);opacity:0}}
+.picker p{margin:0;font-weight:700}
+.vals{display:flex;flex-wrap:wrap;gap:6px}
+.val{min-width:46px;height:46px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);font:800 17px/1 var(--font-d);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 6px;box-shadow:0 2px 0 var(--edge2)}
+.val small{font:700 9px/1 var(--font-b);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.val:hover{border-color:var(--ink);transform:translateY(-2px)}
+
+.dealing .seat .card{animation:dealin .45s cubic-bezier(.2,.8,.3,1.2) both}
+.dealing .slot:nth-child(2) .card{animation-delay:.07s} .dealing .slot:nth-child(3) .card{animation-delay:.14s}
+.dealing .hand .cardbtn:nth-child(1) .card{animation-delay:.2s} .dealing .hand .cardbtn:nth-child(2) .card{animation-delay:.27s} .dealing .hand .cardbtn:nth-child(3) .card{animation-delay:.34s}
+@keyframes dealin{from{transform:translateY(-60px) rotate(-14deg) scale(.6);opacity:0}}
+
+/* flying cards and effects */
+#fx{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
+.fly{position:fixed;display:grid;place-items:center;perspective:700px}
+.flipper{width:var(--cw);aspect-ratio:5/7;position:relative;transform-style:preserve-3d}
+.side{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.side.bk{transform:rotateY(180deg)}
+.fly .card{box-shadow:0 2px 0 var(--edge2),0 22px 26px var(--shadow)}
+.toast{position:fixed;font:800 22px/1 var(--font-d);letter-spacing:.02em;text-transform:uppercase;background:var(--ink);color:var(--table);padding:9px 14px;border-radius:12px;white-space:nowrap;box-shadow:0 4px 0 var(--muted),0 14px 20px var(--shadow)}
+.toast.hot{background:var(--hot);color:var(--paper);box-shadow:0 4px 0 var(--ember),0 14px 20px var(--shadow)}
+.ember{position:fixed;width:8px;height:8px;border-radius:50%;background:var(--ember)}
+.conf{position:fixed;top:-20px;width:12px;height:17px;border-radius:2px}
+
+details{border-top:1px solid var(--line);padding-top:10px;color:var(--muted);font-size:14px}
+summary{cursor:pointer;font-weight:700;color:var(--ink)}
+details ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px;max-width:65ch}
+@media (max-width:640px){ .mid{grid-template-columns:minmax(0,1fr)} .mark{font-size:25px} .now{font-size:18px} .felt{padding:24px 12px 16px} }
+@media (prefers-reduced-motion:reduce){ .cardbtn{transition:none} .seat.turn{animation:none} .dealing .seat .card{animation:none} .picker{animation:none} }
+
+/* start en lobby */
+.screen{display:flex;flex-direction:column;gap:16px}
+.home{gap:24px;padding-top:3vh}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:20px 40px;flex-wrap:wrap}
+.hero-t{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mark.big{font-size:clamp(60px,17vw,112px)}
+.lead{font-size:18px;color:var(--muted);margin:0;max-width:44ch}
+.herofan{display:flex;--cw:clamp(64px,15vw,92px);padding:26px 30px 10px;perspective:700px}
+.herofan .card{margin-left:calc(var(--cw)*-.42);transform-origin:50% 130%;transform:rotate(var(--r)) rotateX(14deg);box-shadow:0 2px 0 var(--edge),0 4px 0 var(--edge2),0 18px 24px var(--shadow);animation:fanin .6s cubic-bezier(.2,.8,.3,1.2) both}
+.herofan .card:first-child{margin-left:0} .herofan .card:nth-child(2){animation-delay:.08s} .herofan .card:nth-child(3){animation-delay:.16s}
+@keyframes fanin{from{transform:rotate(0deg) translateY(40px);opacity:0}}
+.field{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+input,select{font:500 17px var(--font-b);color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;min-height:46px;min-width:0;width:100%}
+input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+#name{max-width:320px}
+#code{text-transform:uppercase;letter-spacing:.2em;font:800 22px var(--font-d)}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.mode{background:var(--panel);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.mode-h{display:flex;align-items:center;gap:12px}
+.mode-h .card{--cw:30px;box-shadow:0 1px 0 var(--edge),0 2px 0 var(--edge2),0 5px 8px var(--shadow);transform:rotate(-8deg)}
+.mode h2{font:800 24px/1 var(--font-d);margin:0}
+.mode p{margin:0;color:var(--muted);flex:1}
+.mode .btn{align-self:flex-start}
+.err{color:var(--hot);font-weight:700;margin:0}
+.codebox{background:var(--felt);color:var(--on-felt);border-radius:22px;padding:18px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;box-shadow:0 8px 0 var(--rim),0 20px 26px var(--shadow)}
+.codebox .zl{color:color-mix(in srgb,var(--on-felt) 75%,transparent)}
+.code{font:800 clamp(52px,15vw,88px)/1 var(--font-d);letter-spacing:.14em}
+.codebox .btn{color:var(--on-felt);border-color:color-mix(in srgb,var(--on-felt) 45%,transparent)}
+.codebox .btn:hover{border-color:var(--on-felt)}
+.lobby-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:22px 28px;align-items:start}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.col h2{font:800 22px/1.1 var(--font-d);margin:0}
+.plist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+.plist li{display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:12px;padding:8px 12px;min-height:48px}
+.plist .grow{flex:1;min-width:0;font:700 17px/1.2 var(--font-d);overflow-wrap:anywhere}
+.plist .off{opacity:.55}
+.btn.small{min-height:32px;padding:4px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:default}
+.waiting{font:700 18px/1.3 var(--font-d);margin:0}
+.waiting i{display:inline-block;animation:dots 1.2s infinite both;font-style:normal}
+.waiting i:nth-child(2){animation-delay:.2s} .waiting i:nth-child(3){animation-delay:.4s}
+@keyframes dots{0%,80%,100%{opacity:.2}40%{opacity:1}}
+.rules{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;color:var(--muted);max-width:62ch}
+.rules b{color:var(--ink)}
+.conn{position:fixed;left:50%;top:max(10px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--hot);color:var(--paper);font-weight:700;border-radius:999px;padding:6px 14px;box-shadow:0 6px 14px var(--shadow);white-space:nowrap}
+@media (max-width:700px){ .lobby-grid{grid-template-columns:minmax(0,1fr)} }
+@media (prefers-reduced-motion:reduce){ .herofan .card,.waiting i{animation:none} }
+</style>
+</head>
+<body>
+<div class="conn" id="conn" hidden>Geen verbinding. Opnieuw verbinden…</div>
+<div class="app" id="app">
+
+  <section class="screen home" id="home">
+    <div class="hero">
+      <div class="hero-t">
+        <h1 class="mark big" aria-label="3Decks">D<b>3</b>cks</h1>
+        <p class="lead">Het kaartspel met drie decks. Speel met 3 tot 8 spelers, online met je vrienden of tegen bots.</p>
+      </div>
+      <div class="herofan" aria-hidden="true"><span class="card back d1" style="--r:-16deg"><span class="bwm">D<b>3</b>CKS</span></span><span class="card back d2" style="--r:0deg"><span class="bwm">D<b>3</b>CKS</span></span><span class="card back d3" style="--r:16deg"><span class="bwm">D<b>3</b>CKS</span></span></div>
+    </div>
+    <label class="field" for="name">Je naam<input id="name" maxlength="14" autocomplete="nickname" placeholder="Hoe heet je?"></label>
+    <p class="err" id="homeErr" role="alert" hidden></p>
+    <div class="modes">
+      <div class="mode">
+        <div class="mode-h"><span class="card back d1"><span class="bwm">D<b>3</b>CKS</span></span><h2>Host</h2></div>
+        <p>Maak een spel aan. Je krijgt een code die je met de anderen deelt, en je kunt bots toevoegen.</p>
+        <button class="btn main" type="button" data-act="host">Spel hosten</button>
+      </div>
+      <div class="mode">
+        <div class="mode-h"><span class="card back d2"><span class="bwm">D<b>3</b>CKS</span></span><h2>Join</h2></div>
+        <p>Doe mee met een spel van iemand anders.</p>
+        <label class="field" for="code">Spelcode<input id="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD"></label>
+        <button class="btn main" type="button" data-act="join">Meedoen</button>
+      </div>
+      <div class="mode">
+        <div class="mode-h"><span class="card back d3"><span class="bwm">D<b>3</b>CKS</span></span><h2>Tegen bots</h2></div>
+        <p>Speel in je eentje. Het spel begint meteen.</p>
+        <label class="field" for="bots">Aantal bots<select id="bots"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <button class="btn main" type="button" data-act="solo">Start</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="lobby" hidden>
+    <header class="bar">
+      <h1 class="mark" aria-label="3Decks">D<b>3</b>cks</h1>
+      <div class="tools"><button class="btn" type="button" data-act="leave">Verlaten</button></div>
+    </header>
+    <div class="codebox">
+      <div><span class="zl">Spelcode</span><div class="code" id="lobCode"></div></div>
+      <div class="actions"><button class="btn" type="button" data-act="copy" id="copyBtn">Kopieer uitnodiging</button></div>
+    </div>
+    <p class="err" id="lobErr" role="alert" hidden></p>
+    <div class="lobby-grid">
+      <div class="col">
+        <h2 id="lobCount">Spelers</h2>
+        <ul class="plist" id="plist"></ul>
+        <div id="lobCtl" class="col"></div>
+      </div>
+      <div class="col">
+        <h2>Regels</h2>
+        <ul class="rules">
+        <li>Speel één kaart die gelijk of hoger is dan de bovenste. Kun je spelen, dan moet je. Kun je niet, dan pak je de stapel.</li>
+        <li><b>2</b> mag overal op, draait de richting om en geeft de volgende een vrije zet.</li>
+        <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
+        <li><b>8</b> slaat een speler over, meerdere 8'en achter elkaar slaan er meer over. Niet tijdens de 7-regel.</li>
+        <li><b>10</b> mag overal op en verbrandt de stapel. Vier gelijke kaarten op rij doen dat ook.</li>
+        <li><b>Joker en scorekaart</b> zijn wild. Als 10 mag alleen als er al een wildcard in de stapel ligt.</li>
+        <li>Heb je minder dan 3 kaarten in je hand, dan vul je aan van het deck.</li>
+        <li>Is het deck leeg, dan speel je eerst je hand leeg, dan je 3 open kaarten, dan je 3 blinde kaarten. Wie als eerste alles kwijt is, wint.</li>
+        <li>Wie nooit van het deck heeft gepakt, ligt eruit zodra in de endgame iemand de stapel pakt of verbrandt.</li>
+        </ul>
+        <h2>Tips</h2>
+        <ul class="rules">
+        <li>Voor de start mag je handkaarten ruilen met je open kaarten. Leg daar je sterkste kaarten neer, zoals een 10, een 2, een joker of een aas. Die heb je in de endgame nodig.</li>
+        <li>Je moet spelen als je kunt, maar je kiest zelf welke kaart. Speel je laagste kaart en bewaar je 2, 10 en jokers tot je anders moet pakken.</li>
+        <li>Een 7 werkt goed tegen iemand met alleen hoge kaarten. Die kan dan niet en moet de stapel pakken.</li>
+        <li>Een joker als aas zet de volgende speler onder druk. Liggen er al drie gelijke kaarten, maak er dan de vierde van en verbrand de stapel.</li>
+        <li>Onthoud wat iemand oppakt. Na een mislukte blinde kaart weet je precies wat hij in zijn hand heeft, en kun je erboven blijven spelen.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="game" hidden>
+    <header class="bar">
+      <h1 class="mark" aria-label="3Decks">D<b>3</b>cks</h1>
+      <div class="tools"><button class="btn" id="leaveBtn" type="button" data-act="leave">Verlaten</button></div>
+    </header>
+    <div class="chips" id="chips"></div>
+    <p class="err" id="gameErr" role="alert" hidden></p>
+    <section class="opps" id="opps" aria-label="Tegenstanders"></section>
+    <section class="mid" aria-label="Tafel">
+      <div class="tablewrap"><div class="felt">
+        <div class="stack"><div id="deckBox"></div><span class="cap" id="deckCap"></span></div>
+        <div class="stack"><div class="pilewrap"><div class="pile" id="pileBox"></div><div class="pile fxpile" id="pileFx"></div></div><span class="cap" id="pileCap"></span></div>
+      </div></div>
+      <div class="info" id="info"></div>
+    </section>
+    <section class="seat me" id="me" aria-label="Jouw kaarten"></section>
+    <details>
+      <summary>Regels in het kort</summary>
+      <ul>
+        <li>Speel één kaart die gelijk of hoger is dan de bovenste. Kun je spelen, dan moet je. Kun je niet, dan pak je de stapel.</li>
+        <li><b>2</b> mag overal op, draait de richting om en geeft de volgende een vrije zet.</li>
+        <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
+        <li><b>8</b> slaat een speler over, meerdere 8'en achter elkaar slaan er meer over. Niet tijdens de 7-regel.</li>
+        <li><b>10</b> mag overal op en verbrandt de stapel. Vier gelijke kaarten op rij doen dat ook.</li>
+        <li><b>Joker en scorekaart</b> zijn wild. Als 10 mag alleen als er al een wildcard in de stapel ligt.</li>
+        <li>Heb je minder dan 3 kaarten in je hand, dan vul je aan van het deck.</li>
+        <li>Is het deck leeg, dan speel je eerst je hand leeg, dan je 3 open kaarten, dan je 3 blinde kaarten. Wie als eerste alles kwijt is, wint.</li>
+        <li>Wie nooit van het deck heeft gepakt, ligt eruit zodra in de endgame iemand de stapel pakt of verbrandt.</li>
+      </ul>
+    </details>
+  </section>
+</div>
+<div id="fx" aria-hidden="true"></div>
+<script src="app.js"></script>
+</body>
+</html>
