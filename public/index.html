@@ -14,7 +14,7 @@
   --table:#e2e7ee; --panel:#d0d8e3; --paper:#fdfdfb; --paper2:#e9edf2; --ink:#151c2a; --muted:#536074; --line:#b4bfce;
   --felt:#2f4669; --felt-hi:#3f5d8a; --rim:#1f2f48; --on-felt:#e6edf7;
   --edge:#cfd5de; --edge2:#a9b2bf; --shadow:rgba(16,24,40,.28);
-  --d1:#2552c4; --d2:#c5362f; --d3:#99660a; --back-ink:#ffffff; --ok:#17794a; --hot:#b3421a; --ember:#f08a24;
+  --d1:#2552c4; --d2:#c5362f; --d3:#99660a; --back-ink:#ffffff; --ok:#17794a; --hot:#b3421a; --ember:#f08a24; --ember-hi:#ffd54a; --char:#1d130c;
   --font-d:'Bricolage Grotesque','Trebuchet MS','Segoe UI',sans-serif;
   --font-b:'DM Sans','Segoe UI',system-ui,sans-serif;
   --cw:clamp(50px,13vw,66px);
@@ -23,12 +23,12 @@
   --table:#0e1520; --panel:#18222f; --paper:#27344a; --paper2:#1e293b; --ink:#eef1f6; --muted:#9ba8ba; --line:#3a4960;
   --felt:#1a2a45; --felt-hi:#243a5e; --rim:#080e19; --on-felt:#dfe7f3;
   --edge:#141d2b; --edge2:#0a111c; --shadow:rgba(0,0,0,.55);
-  --d1:#86a8ff; --d2:#ff8178; --d3:#f1ba4e; --back-ink:#0e1520; --ok:#4fc890; --hot:#ff9a6b; --ember:#ffb347; color-scheme:dark } }
+  --d1:#86a8ff; --d2:#ff8178; --d3:#f1ba4e; --back-ink:#0e1520; --ok:#4fc890; --hot:#ff9a6b; --ember:#ffb347; --ember-hi:#ffe27a; --char:#120b06; color-scheme:dark } }
 :root[data-theme="dark"]{
   --table:#0e1520; --panel:#18222f; --paper:#27344a; --paper2:#1e293b; --ink:#eef1f6; --muted:#9ba8ba; --line:#3a4960;
   --felt:#1a2a45; --felt-hi:#243a5e; --rim:#080e19; --on-felt:#dfe7f3;
   --edge:#141d2b; --edge2:#0a111c; --shadow:rgba(0,0,0,.55);
-  --d1:#86a8ff; --d2:#ff8178; --d3:#f1ba4e; --back-ink:#0e1520; --ok:#4fc890; --hot:#ff9a6b; --ember:#ffb347; color-scheme:dark }
+  --d1:#86a8ff; --d2:#ff8178; --d3:#f1ba4e; --back-ink:#0e1520; --ok:#4fc890; --hot:#ff9a6b; --ember:#ffb347; --ember-hi:#ffe27a; --char:#120b06; color-scheme:dark }
 
 *{box-sizing:border-box}
 html{color-scheme:light}
@@ -74,6 +74,27 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .c-main{font-size:calc(var(--cw)*.5);line-height:1;letter-spacing:-.03em;text-shadow:0 calc(var(--cw)*.025) 0 color-mix(in srgb,var(--dc) 25%,transparent)}
 .c-corner{position:absolute;top:9%;left:12%;font-size:calc(var(--cw)*.19);line-height:1}
 .c-tag{position:absolute;bottom:10%;left:0;right:0;text-align:center;font:700 calc(var(--cw)*.125)/1 var(--font-b);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.c-ic{position:absolute;bottom:7%;left:50%;transform:translateX(-50%);width:calc(var(--cw)*.27);height:calc(var(--cw)*.27);color:var(--dc)}
+.c-ic svg,.c-mini svg,.c-jm svg,.c-cj svg{width:100%;height:100%;display:block;overflow:visible}
+.ic-10 .f1{fill:var(--hot)} .ic-10 .f2{fill:var(--ember-hi)}
+.ic-10 .fl{transform-origin:50% 95%;animation:flick 1.8s ease-in-out infinite}
+@keyframes flick{0%,100%{transform:none}30%{transform:scale(.93,1.09) skewX(-4deg)}60%{transform:scale(1.04,.95) skewX(3deg)}}
+.c-cj{width:calc(var(--cw)*.2);height:calc(var(--cw)*.2)}
+.c-jm{width:calc(var(--cw)*.62);height:calc(var(--cw)*.62);color:var(--dc);margin-top:-12%}
+.c-mini{position:absolute;top:8%;right:9%;width:calc(var(--cw)*.19);height:calc(var(--cw)*.19);color:var(--dc);opacity:.85}
+.c-jest{position:absolute;inset:0;border-radius:inherit;background:inherit;display:grid;place-items:center;opacity:0;pointer-events:none}
+.c-shine{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.6) 50%,transparent 65%);background-size:250% 100%}
+.morph>.c-jest{animation:jestout 1.05s ease-in-out .1s both}
+.morph>.c-main,.morph>.c-corner,.morph>.c-ic,.morph>.c-tag,.morph>.c-mini{animation:valin .6s ease-out .55s both}
+.morph>.c-shine{animation:shine 1s ease-in-out .3s both}
+@keyframes jestout{0%,30%{opacity:1;transform:none;filter:none}100%{opacity:0;transform:scale(1.15) rotate(8deg);filter:blur(5px)}}
+@keyframes valin{from{opacity:0;filter:blur(5px);scale:.7}}
+@keyframes shine{0%{opacity:0;background-position:120% 0}30%{opacity:1}100%{opacity:0;background-position:-30% 0}}
+.landed>.ic-2 svg{animation:spin .8s cubic-bezier(.3,.7,.3,1)} @keyframes spin{from{transform:rotate(-360deg) scale(1.7)}}
+.landed>.ic-7 svg{animation:dropa .8s ease-out} @keyframes dropa{0%{transform:translateY(-70%) scale(1.5)}55%{transform:translateY(30%)}80%{transform:translateY(-8%)}100%{transform:none}}
+.landed>.ic-8 svg{animation:skipa .7s ease-out} @keyframes skipa{0%{transform:translateX(-80%);opacity:0}60%{transform:translateX(25%);opacity:1}100%{transform:none}}
+.landed>.ic-10 svg{animation:flare .6s ease-out} @keyframes flare{0%{transform:scale(2.3)}100%{transform:none}}
+.sm .c-ic,.sm .c-mini{display:none}
 .c-tag.wm{font-family:var(--font-d);font-weight:800;letter-spacing:.04em;opacity:.8}
 .c-tag.wm b{color:var(--dc);font-size:1.35em}
 .card.back{background:linear-gradient(160deg,var(--dc),color-mix(in srgb,var(--dc) 72%,#000));border-color:transparent;color:var(--back-ink);overflow:hidden}
@@ -115,9 +136,15 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .pile{display:grid;padding:6px 16px;transform-style:preserve-3d}
 .pile>*{grid-area:1/1}
 .fxpile{pointer-events:none;transition:none}
-.fxpile.burning .card{animation:burn var(--bd,.6s) ease-in forwards}
-.fxpile.burning .card:nth-last-child(2){animation-delay:.05s} .fxpile.burning .card:nth-last-child(3){animation-delay:.1s}
-@keyframes burn{0%{filter:none}30%{filter:brightness(1.5) sepia(1) saturate(4) hue-rotate(-20deg);box-shadow:0 0 30px 10px var(--ember)}100%{filter:brightness(.3) sepia(1);transform:translateY(-46px) rotate(14deg) scale(.55);opacity:0}}
+.fxpile.burning .card{animation:burn var(--bd,1.1s) ease-in forwards}
+.fxpile.burning .card:nth-last-child(2){animation-delay:.06s} .fxpile.burning .card:nth-last-child(3){animation-delay:.12s}
+@keyframes burn{0%{filter:none}20%{filter:brightness(1.25) saturate(1.3)}60%{filter:brightness(.8);transform:translateY(-4px)}100%{filter:brightness(.3) blur(2px);transform:translateY(-42px) scale(.6) rotate(10deg);opacity:0}}
+.fxpile.burning .card::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;background:linear-gradient(to top,var(--char) 0 40%,var(--hot) 45%,var(--ember-hi) 48%,transparent 54%);background-size:100% 260%;background-position:0 0;animation:char var(--bd,1.1s) cubic-bezier(.45,0,.6,1) forwards}
+@keyframes char{to{background-position:0 100%}}
+.flamebox{position:fixed;pointer-events:none}
+.flame{position:absolute;bottom:2%;border-radius:50% 50% 45% 45% / 62% 62% 38% 38%;background:radial-gradient(ellipse at 50% 78%,var(--ember-hi) 0%,var(--ember) 34%,var(--hot) 60%,transparent 71%);filter:blur(1.2px);transform-origin:50% 100%}
+.fglow{position:absolute;inset:-35%;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--ember) 50%,transparent),transparent 62%)}
+.ember.ash{background:var(--muted);width:5px;height:5px}
 .fxpile.go{transition:transform var(--bd,.48s) cubic-bezier(.5,0,.8,.4),opacity var(--bd,.48s) ease-in}
 .fxpile.away{transform:translate(var(--px,0px),var(--py,200px)) scale(.4);opacity:0}
 .info{min-width:0;display:flex;flex-direction:column;gap:8px}
@@ -210,7 +237,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
 .rules b{color:var(--ink)}
 .conn{position:fixed;left:50%;top:max(10px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--hot);color:var(--paper);font-weight:700;border-radius:999px;padding:6px 14px;box-shadow:0 6px 14px var(--shadow);white-space:nowrap}
 @media (max-width:700px){ .lobby-grid{grid-template-columns:minmax(0,1fr)} }
-@media (prefers-reduced-motion:reduce){ .herofan .card,.waiting i{animation:none} }
+@media (prefers-reduced-motion:reduce){ .herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*{animation:none} }
 </style>
 </head>
 <body>
@@ -272,7 +299,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
         <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
         <li><b>8</b> slaat een speler over, meerdere 8'en achter elkaar slaan er meer over. Niet tijdens de 7-regel.</li>
         <li><b>10</b> mag overal op en verbrandt de stapel. Vier gelijke kaarten op rij doen dat ook.</li>
-        <li><b>Joker en scorekaart</b> zijn wild. Als 10 mag alleen als er al een wildcard in de stapel ligt.</li>
+        <li><b>Joker en scorekaart</b> (de nar) zijn wild. Als 10 mag alleen als er al een wildcard in de stapel ligt.</li>
         <li>Heb je minder dan 3 kaarten in je hand, dan vul je aan van het deck.</li>
         <li>Is het deck leeg, dan speel je eerst je hand leeg, dan je 3 open kaarten, dan je 3 blinde kaarten. Wie als eerste alles kwijt is, wint.</li>
         <li>Wie nooit van het deck heeft gepakt, ligt eruit zodra in de endgame iemand de stapel pakt of verbrandt.</li>
@@ -313,7 +340,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
         <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
         <li><b>8</b> slaat een speler over, meerdere 8'en achter elkaar slaan er meer over. Niet tijdens de 7-regel.</li>
         <li><b>10</b> mag overal op en verbrandt de stapel. Vier gelijke kaarten op rij doen dat ook.</li>
-        <li><b>Joker en scorekaart</b> zijn wild. Als 10 mag alleen als er al een wildcard in de stapel ligt.</li>
+        <li><b>Joker en scorekaart</b> (de nar) zijn wild. Als 10 mag alleen als er al een wildcard in de stapel ligt.</li>
         <li>Heb je minder dan 3 kaarten in je hand, dan vul je aan van het deck.</li>
         <li>Is het deck leeg, dan speel je eerst je hand leeg, dan je 3 open kaarten, dan je 3 blinde kaarten. Wie als eerste alles kwijt is, wint.</li>
         <li>Wie nooit van het deck heeft gepakt, ligt eruit zodra in de endgame iemand de stapel pakt of verbrandt.</li>

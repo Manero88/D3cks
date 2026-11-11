@@ -19,9 +19,21 @@ function storeTab(val){try{if(val===null)sessionStorage.removeItem('d3cks-sessio
 function loadTab(){try{return sessionStorage.getItem('d3cks-session');}catch(e){return null;}}
 
 /* ---------- kaarten tekenen ---------- */
-function face(c,o){o=o||{};var wild=c.k!=='n',main=wild?(c.k==='joker'?'★':'✦'):lab(c.v);
-  var tag=wild?(o.as?'als '+lab(o.as):(c.k==='joker'?'joker':'score')):(FX[c.v]||'');
-  return '<span class="card d'+c.d+' '+(o.cls||'')+'"'+(o.attr||'')+'><span class="c-corner">'+main+'</span><span class="c-main">'+main+'</span>'+(tag?'<span class="c-tag">'+tag+'</span>':WM)+'</span>';}
+var IC={
+  jest:'<svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"><path d="M23 33C20 18 10 13 6 25"/><path d="M41 33C44 18 54 13 58 25"/><path d="M32 31C29 17 35 8 45 9"/></g><circle cx="6" cy="29" r="4.2"/><circle cx="58" cy="29" r="4.2"/><circle cx="49" cy="9.5" r="4.2"/><rect x="15" y="30" width="34" height="7" rx="3.5"/><circle cx="32" cy="49" r="10.5" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="28" cy="46.5" r="1.8"/><circle cx="36" cy="46.5" r="1.8"/><path d="M27 52q5 4 10 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  10:'<svg viewBox="0 0 24 24" aria-hidden="true"><g class="fl"><path class="f1" d="M12 2c1 4 6 6 6 12 0 4.4-2.7 7.5-6 7.5S6 18.4 6 14c0-3 2-5 3-7 .5 2 1.5 3 2.5 3.5C11 7 11.5 4.5 12 2z"/><path class="f2" d="M12 12c1 2 3 3 3 5 0 2-1.3 3-3 3s-3-1-3-3c0-1.5 1.5-2.5 3-5z"/></g></svg>',
+  2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10A7.5 7.5 0 0 1 18.5 7.5M18.8 3.5v4.3h-4.2M19 14A7.5 7.5 0 0 1 5.5 16.5M5.2 20.5v-4.3h4.2"/></svg>',
+  7:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v16M6 13.5l6 6 6-6"/></svg>',
+  8:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l6 6-6 6M11 6l6 6-6 6M20 6v12"/></svg>'
+};
+function valInner(x){var r=lab(x);return '<span class="c-corner">'+r+'</span><span class="c-main">'+r+'</span>'+(IC[x]?'<span class="c-ic ic-'+x+'">'+IC[x]+'</span>':'');}
+function jestInner(c){return '<span class="c-corner c-cj">'+IC.jest+'</span><span class="c-jm">'+IC.jest+'</span><span class="c-tag">'+(c.k==='joker'?'joker':'score')+'</span>';}
+// Een wildcard die gespeeld is, draagt de nar nog onder de gekozen waarde, zodat hij kan 'veranderen'.
+function face(c,o){o=o||{};var cls='card d'+c.d+' '+(o.cls||''),h;
+  if(c.k==='n')h=valInner(c.v)+(IC[c.v]?'':WM);
+  else if(o.as){cls+=' wild';h=valInner(o.as)+(IC[o.as]?'':'<span class="c-tag">nar</span>')+'<span class="c-mini">'+IC.jest+'</span><span class="c-jest">'+jestInner(c)+'</span><span class="c-shine"></span>';}
+  else{cls+=' wild';h=jestInner(c);}
+  return '<span class="'+cls+'"'+(o.attr||'')+'>'+h+'</span>';}
 function back(d,cls,attr){return '<span class="card back d'+d+' '+(cls||'')+'"'+(attr||'')+'><span class="bwm">D<b>3</b>CKS</span></span>';}
 function ghost(cls){return '<span class="card ghost '+(cls||'')+'"></span>';}
 function thick(n,per,max){var l=Math.min(max,Math.ceil(n/per)),s=[];for(var i=1;i<=l;i++)s.push('0 '+(i*1.6).toFixed(1)+'px 0 var(--edge'+(i%2?'':'2')+')');s.push('0 '+(l*1.6+10).toFixed(1)+'px 16px var(--shadow)');return s.join(',');}
@@ -224,11 +236,24 @@ function toast(txt,r,hot){
   var a=d.animate([{transform:b+'scale(.3) rotate(-14deg)',opacity:0},{transform:b+'scale(1.15) rotate(-5deg)',opacity:1,offset:.22},{transform:b+'scale(1) rotate(-4deg)',opacity:1,offset:.72},{transform:b+'translateY(-34px) scale(.96) rotate(-4deg)',opacity:0}],{duration:1050,easing:'ease-out',fill:'both'});
   a.onfinish=function(){d.remove();};
 }
-function embers(r){
+function flames(r){
+  var box=document.createElement('div');box.className='flamebox';
+  box.style.cssText='left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px';
+  $('fx').appendChild(box);
+  var glow=document.createElement('div');glow.className='fglow';box.appendChild(glow);
+  glow.animate([{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'scale(1.1)',offset:.3},{opacity:.8,offset:.7},{opacity:0,transform:'scale(1.3)'}],{duration:1150,fill:'both'});
+  for(var i=0;i<12;i++){(function(){
+    var f=document.createElement('div');f.className='flame';var w=r.width*(.3+Math.random()*.32);
+    f.style.cssText='left:'+(8+Math.random()*84)+'%;width:'+w+'px;height:'+(w*1.75)+'px';box.appendChild(f);
+    f.animate([{transform:'translate(-50%,20%) scale(.2,.1)',opacity:0},{transform:'translate(-50%,0) scale(1,1.1)',opacity:1,offset:.25},{transform:'translate(-50%,-12%) scale(.8,1.35)',opacity:1,offset:.55},{transform:'translate(-50%,-30%) scale(.95,1)',opacity:.85,offset:.75},{transform:'translate(-50%,-60%) scale(.3,.5)',opacity:0}],{duration:850+Math.random()*350,delay:Math.random()*260,easing:'ease-out',fill:'both'});
+  })();}
+  setTimeout(function(){box.remove();},1800);
+}
+function embers(r,kind){
   for(var i=0;i<18;i++){(function(){
-    var d=document.createElement('div');d.className='ember';
+    var d=document.createElement('div');d.className='ember'+(kind?' '+kind:'');
     d.style.left=(r.left+r.width/2+(Math.random()-.5)*r.width*.7)+'px';d.style.top=(r.top+r.height/2+(Math.random()-.5)*r.height*.5)+'px';$('fx').appendChild(d);
-    var a=d.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+((Math.random()-.5)*150)+'px,'+(-70-Math.random()*130)+'px) scale(.2)',opacity:0}],{duration:600+Math.random()*500,delay:Math.random()*200,easing:'ease-out',fill:'both'});
+    var a=d.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+((Math.random()-.5)*(kind?90:150))+'px,'+(kind?(-30-Math.random()*60):(-70-Math.random()*130))+'px) scale(.2)',opacity:0}],{duration:(kind?1100:600)+Math.random()*500,delay:Math.random()*200,easing:'ease-out',fill:'both'});
     a.onfinish=function(){d.remove();};
   })();}
 }
@@ -253,14 +278,17 @@ function runFx(pre,evs){
       var from=ev.t==='open'?deckR:seatSrc(ev.pi,ev.from||'blind');
       var top=pileBox.querySelector('.top'),real=!!(top&&ev.t!=='flipfail'&&+top.getAttribute('data-cid')===ev.c.id),to;
       if(real){to=cardBox(rectOf(top));top.style.visibility='hidden';}else{showGhost();to=cardBox(pileR);}
-      var dx=from.left+from.width/2-(to.left+to.width/2);
-      fly(ev.c,ev.as,from,to,{delay:t,dur:400,flip:ev.t!=='play'||!mine||ev.from==='blind',s:mine&&ev.t==='play'?.7:.45,rot:mine?-10:dx<0?-24:24,
-        done:function(){if(real)top.style.visibility='';else if(ghosted)pfx.insertAdjacentHTML('beforeend',face(ev.c,{as:ev.as,cls:'lg',attr:' style="'+jit(ev.c.id,true)+'"'}));}});
-      t+=400;if(ev.t==='flipfail')t+=520;
+      var dx=from.left+from.width/2-(to.left+to.width/2),wild=ev.c.k!=='n',after=wild?'morph':'landed';
+      fly(ev.c,wild?null:ev.as,from,to,{delay:t,dur:400,flip:ev.t!=='play'||!mine||ev.from==='blind',s:mine&&ev.t==='play'?.7:.45,rot:mine?-10:dx<0?-24:24,
+        done:function(){if(real){top.classList.add(after);top.style.visibility='';}else if(ghosted)pfx.insertAdjacentHTML('beforeend',face(ev.c,{as:ev.as,cls:'lg '+after,attr:' style="'+jit(ev.c.id,true)+'"'}));}});
+      t+=400;if(ev.t==='flipfail')t+=520;if(wild&&ev.t!=='flipfail')t+=950;
     }else if(ev.t==='burn'){
-      showGhost();
-      setTimeout(function(){pfx.style.setProperty('--bd','620ms');pfx.classList.add('burning');embers(pileR);toast('Verbrand',pileR,true);},t+30);
-      t+=700;setTimeout(reset,t);
+      showGhost();var box=cardBox(pileR);
+      setTimeout(function(){
+        pfx.style.setProperty('--bd','1100ms');pfx.classList.add('burning');flames(box);embers(pileR);
+        setTimeout(function(){embers(pileR,'ash');},450);setTimeout(function(){toast('Verbrand',pileR,true);},250);
+      },t+30);
+      t+=1150;setTimeout(reset,t);
     }else if(ev.t==='pick'){
       showGhost();var tr=rectOf(seatEl(ev.pi))||pileR;
       setTimeout(function(){

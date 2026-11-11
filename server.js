@@ -107,7 +107,7 @@ function fxFor(fx, pi) {
 }
 function fxDuration(fx) {
   let t = 0;
-  fx.forEach(ev => { t += ev.t === 'play' || ev.t === 'open' ? 400 : ev.t === 'flipfail' ? 920 : ev.t === 'burn' ? 700 : ev.t === 'pick' ? 540 : ev.t === 'draw' ? 340 : 0; });
+  fx.forEach(ev => { t += ev.t === 'play' ? (ev.c.k !== 'n' ? 1350 : 400) : ev.t === 'open' ? 400 : ev.t === 'flipfail' ? 920 : ev.t === 'burn' ? 1150 : ev.t === 'pick' ? 540 : ev.t === 'draw' ? 340 : 0; });
   return t;
 }
 function broadcastState(room) {
