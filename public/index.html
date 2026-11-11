@@ -105,6 +105,22 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 @keyframes plunge{0%,28%{transform:none}66%,100%{transform:translateX(13px)}}
 @keyframes liq{0%,28%{transform:none}66%,100%{transform:scaleX(.08)}}
 .drop{position:fixed;width:7px;height:9px;border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;background:var(--goo);pointer-events:none}
+.ic-14 .gr{stroke:var(--goo);transform-box:fill-box;transform-origin:50% 50%}
+.ic-14 .hs{transform-box:fill-box;transform-origin:50% 100%}
+.landed>.ic-14 .gr{animation:ground .3s ease-out both}
+.landed>.ic-14 .hs{animation:grow .85s cubic-bezier(.3,.7,.3,1.25) .25s both}
+@keyframes ground{from{transform:scaleX(0)}}
+@keyframes grow{0%{transform:scale(.15,0)}45%{transform:scale(.6,1.25) rotate(-7deg)}70%{transform:scale(1.12,.9) rotate(3deg)}100%{transform:none}}
+.bin{position:relative;width:calc(var(--cw)*.95);height:calc(var(--cw)*1.85);border:2px solid color-mix(in srgb,var(--on-felt) 42%,transparent);border-top:0;border-radius:0 0 12px 12px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--on-felt) 14%,transparent),color-mix(in srgb,var(--on-felt) 4%,transparent) 35%,color-mix(in srgb,var(--on-felt) 4%,transparent) 70%,color-mix(in srgb,var(--on-felt) 16%,transparent));
+  box-shadow:inset 0 -10px 16px color-mix(in srgb,#000 25%,transparent)}
+.bin::before{content:"";position:absolute;top:-3px;left:-5px;right:-5px;height:4px;border-radius:2px;background:color-mix(in srgb,var(--on-felt) 45%,transparent)}
+.bin::after{content:"";position:absolute;top:12%;bottom:12%;left:15%;width:4px;border-radius:2px;background:color-mix(in srgb,var(--on-felt) 22%,transparent);z-index:2}
+.slab{position:absolute;left:9%;right:9%;height:3px;border-radius:1px;bottom:calc(3px + (100% - 10px) * var(--i) / 165);transform:translateX(var(--x)) rotate(var(--r));
+  background:color-mix(in srgb,var(--sd) 40%,var(--char));transition:transform .32s cubic-bezier(.5,0,.75,1.3),opacity .1s}
+.slab.s1{--sd:var(--d1)} .slab.s2{--sd:var(--d2)} .slab.s3{--sd:var(--d3)}
+.slab.pending{opacity:0;transform:translateY(-110px) rotate(var(--r));transition:none}
+.charcard{position:fixed;border-radius:8px;pointer-events:none;background:linear-gradient(160deg,var(--char),color-mix(in srgb,var(--char) 70%,var(--hot)));box-shadow:0 0 0 1px color-mix(in srgb,var(--ember) 40%,transparent)}
 .rhand{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
 .revealed{animation:flipin .6s cubic-bezier(.3,.7,.3,1.2) var(--rd,0s) both}
 @keyframes flipin{from{rotate:y 90deg;opacity:.3}}
@@ -138,7 +154,7 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 /* the table */
 .mid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:8px 26px;align-items:center}
 .tablewrap{perspective:900px;perspective-origin:50% 0%;padding:0 4px 18px}
-.felt{background:radial-gradient(ellipse at 50% 20%,var(--felt-hi),var(--felt) 75%);border-radius:30px;padding:30px 18px 20px;display:flex;align-items:flex-end;justify-content:center;gap:clamp(22px,6vw,48px);
+.felt{background:radial-gradient(ellipse at 50% 20%,var(--felt-hi),var(--felt) 75%);border-radius:30px;padding:30px 18px 20px;display:flex;align-items:flex-end;justify-content:center;gap:clamp(16px,5vw,44px);
   transform:rotateX(24deg);transform-origin:50% 100%;transform-style:preserve-3d;
   box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--on-felt) 14%,transparent),inset 0 10px 30px color-mix(in srgb,#000 22%,transparent),0 12px 0 var(--rim),0 30px 34px var(--shadow)}
 .stack{display:flex;flex-direction:column;align-items:center;gap:32px;transform-style:preserve-3d}
@@ -291,7 +307,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   <section class="screen" id="lobby" hidden>
     <header class="bar">
       <h1 class="mark" aria-label="3Decks">D<b>3</b>cks</h1>
-      <div class="tools"><button class="btn" type="button" data-act="leave">Verlaten</button></div>
+      <div class="tools"><button class="btn sndBtn" type="button" data-act="sound" aria-pressed="true">Geluid aan</button><button class="btn" type="button" data-act="leave">Verlaten</button></div>
     </header>
     <div class="codebox">
       <div><span class="zl">Spelcode</span><div class="code" id="lobCode"></div></div>
@@ -332,13 +348,14 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   <section class="screen" id="game" hidden>
     <header class="bar">
       <h1 class="mark" aria-label="3Decks">D<b>3</b>cks</h1>
-      <div class="tools"><button class="btn" id="leaveBtn" type="button" data-act="leave">Verlaten</button></div>
+      <div class="tools"><button class="btn sndBtn" type="button" data-act="sound" aria-pressed="true">Geluid aan</button><button class="btn" id="leaveBtn" type="button" data-act="leave">Verlaten</button></div>
     </header>
     <div class="chips" id="chips"></div>
     <p class="err" id="gameErr" role="alert" hidden></p>
     <section class="opps" id="opps" aria-label="Tegenstanders"></section>
     <section class="mid" aria-label="Tafel">
       <div class="tablewrap"><div class="felt">
+        <div class="stack"><div class="bin" id="binBox" aria-hidden="true"></div><span class="cap" id="binCap"></span></div>
         <div class="stack"><div id="deckBox"></div><span class="cap" id="deckCap"></span></div>
         <div class="stack"><div class="pilewrap"><div class="pile" id="pileBox"></div><div class="pile fxpile" id="pileFx"></div></div><span class="cap" id="pileCap"></span></div>
       </div></div>
