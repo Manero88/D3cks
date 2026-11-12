@@ -287,27 +287,51 @@ function junkie(card){
   },520+i*55);})(i);}
   setTimeout(function(){card.classList.remove('junk');var s=card.querySelector('.c-syr');if(s)s.remove();},1800);
 }
-// Een rekbare arm schiet van de speler naar de stapel, grijpt hem en trekt hem terug.
+// Een rekbare arm schiet naar de stapel, slaat met de hand op tafel en trekt de kaarten terug.
+// Bij het terugtrekken krassen de vingers over het vilt; die krassen vervagen daarna.
 function stretchArm(S,P,ghost){
+  var felt=document.querySelector('.felt'),fr=felt?felt.getBoundingClientRect():{left:0,top:0,width:9999,height:9999};
+  var cid='fc'+Date.now();
+  var sc=document.createElement('div');sc.className='scratchfx';
+  sc.innerHTML='<svg width="100%" height="100%"><defs><clipPath id="'+cid+'"><rect x="'+fr.left+'" y="'+fr.top+'" width="'+fr.width+'" height="'+fr.height+'" rx="30"/></clipPath></defs><g clip-path="url(#'+cid+')"><g class="g1"></g><g class="g2" transform="translate(-.8 -.8)"></g></g></svg>';
   var box=document.createElement('div');box.className='armfx';
-  box.innerHTML='<svg width="100%" height="100%"><path class="a1"/><path class="a2"/><g class="hand"><g class="fing"><path d="M6 -9 L22 -15 M10 -3 L27 -5 M10 3 L27 5 M6 9 L22 15"/></g><path class="thumb" d="M0 -11 L6 -22"/><circle r="12"/></g></svg>';
-  $('fx').appendChild(box);
-  var a1=box.querySelector('.a1'),a2=box.querySelector('.a2'),hand=box.querySelector('.hand'),fing=box.querySelector('.fing');
-  var dx=P.x-S.x,dy=P.y-S.y,len=Math.sqrt(dx*dx+dy*dy)||1,px=-dy/len,py=dx/len,D=900,t0=null;
+  box.innerHTML='<svg width="100%" height="100%"><ellipse class="hshadow" rx="17" ry="6"/><path class="a1"/><path class="a2"/><g class="hand"><g class="fing"><path d="M6 -9 L22 -15 M10 -3 L27 -5 M10 3 L27 5 M6 9 L22 15"/></g><path class="thumb" d="M0 -11 L6 -22"/><circle r="12"/></g></svg>';
+  $('fx').appendChild(sc);$('fx').appendChild(box);
+  var a1=box.querySelector('.a1'),a2=box.querySelector('.a2'),hand=box.querySelector('.hand'),fing=box.querySelector('.fing'),shadow=box.querySelector('.hshadow');
+  var g1=sc.querySelector('.g1'),g2=sc.querySelector('.g2'),OFF=[-10,-3.5,3.5,10],trails=OFF.map(function(){return[];}),p1=[],p2=[];
+  OFF.forEach(function(){var x=document.createElementNS('http://www.w3.org/2000/svg','path'),y=document.createElementNS('http://www.w3.org/2000/svg','path');g1.appendChild(x);g2.appendChild(y);p1.push(x);p2.push(y);});
+  var dx=P.x-S.x,dy=P.y-S.y,len=Math.sqrt(dx*dx+dy*dy)||1,px=-dy/len,py=dx/len,D=1150,t0=null,slammed=false;
   function ease(x){return 1-Math.pow(1-x,3);}function easeIn(x){return x*x*x;}
   function frame(now){
     if(t0===null)t0=now;var u=Math.min(1,(now-t0)/D);
-    var ext=u<.38?ease(u/.38):u<.5?1:1-easeIn((u-.5)/.5);
-    var ex=S.x+dx*ext,ey=S.y+dy*ext,amp=len*.2*Math.sin(u*Math.PI*3)*(1-u)*ext;
-    var cx=(S.x+ex)/2+px*amp,cy=(S.y+ey)/2+py*amp,d='M'+S.x+' '+S.y+' Q'+cx+' '+cy+' '+ex+' '+ey;
+    var ext,lift=0,scale=1;
+    if(u<.32){var k=u/.32;ext=ease(k);lift=-26*Math.sin(Math.PI*Math.min(1,k*1.15))-8*k;scale=1+.35*k;}       // reiken, hand hoog boven tafel
+    else if(u<.42){var k2=(u-.32)/.1;ext=1;lift=-8*(1-k2);scale=1.35-.5*Math.sin(Math.PI*k2*.5)-.0*k2;if(k2>.6)scale=.85+.15*(k2-.6)/.4;}  // neerslaan
+    else if(u<.48){ext=1;}                                                                                          // vastpakken
+    else{ext=1-easeIn((u-.48)/.52);}                                                                                // terugtrekken over het vilt
+    if(!slammed&&u>=.4){slammed=true;impact(P);if(felt&&felt.animate&&motion)felt.animate([{translate:'0 0'},{translate:'0 3px'},{translate:'0 -1px'},{translate:'0 0'}],{duration:220});}
+    var ex=S.x+dx*ext,ey=S.y+dy*ext,amp=len*.16*Math.sin(u*Math.PI*3)*(1-u)*ext*(u<.42?1:.3);
+    var cx=(S.x+ex)/2+px*amp,cy=(S.y+ey)/2+py*amp+lift*.5,hy=ey+lift,d='M'+S.x+' '+S.y+' Q'+cx+' '+cy+' '+ex+' '+hy;
     a1.setAttribute('d',d);a2.setAttribute('d',d);
-    var ang=Math.atan2(ey-cy,ex-cx)*180/Math.PI;
-    hand.setAttribute('transform','translate('+ex+' '+ey+') rotate('+ang+')');
-    fing.setAttribute('transform',u>.42?'scale(.45 .8)':'');
-    if(u>.5&&ghost){var k=(u-.5)/.5;ghost.style.transform='translate('+(ex-P.x)+'px,'+(ey-P.y)+'px) scale('+(1-.55*k)+')';ghost.style.opacity=String(1-k*.8);}
-    if(u<1)requestAnimationFrame(frame);else box.remove();
+    var ang=Math.atan2(hy-cy,ex-cx)*180/Math.PI;
+    hand.setAttribute('transform','translate('+ex+' '+hy+') rotate('+ang+') scale('+scale+')');
+    fing.setAttribute('transform',u>.4?'scale(.5 .85)':'');
+    shadow.setAttribute('cx',ex);shadow.setAttribute('cy',ey+6);shadow.setAttribute('opacity',String(.12+.25*(1+lift/34)));
+    if(u>.48){
+      trails.forEach(function(tr,i){tr.push((ex+px*OFF[i]+(Math.random()-.5)*1.4).toFixed(1)+' '+(ey+py*OFF[i]+(Math.random()-.5)*1.4).toFixed(1));
+        var dd='M'+tr.join(' L');p1[i].setAttribute('d',dd);p2[i].setAttribute('d',dd);});
+      if(ghost){var k3=(u-.48)/.52;ghost.style.transform='translate('+(ex-P.x)+'px,'+(ey-P.y)+'px) scale('+(1-.55*k3)+')';ghost.style.opacity=String(1-k3*.8);}
+    }
+    if(u<1)requestAnimationFrame(frame);
+    else{box.remove();var f=sc.animate?sc.animate([{opacity:1},{opacity:1,offset:.25},{opacity:0}],{duration:1100,fill:'both'}):null;if(f)f.onfinish=function(){sc.remove();};else setTimeout(function(){sc.remove();},800);}
   }
   requestAnimationFrame(frame);
+}
+// Stofwolkje waar de hand op tafel neerkomt.
+function impact(p){
+  if(!document.body.animate)return;
+  var r=document.createElement('div');r.className='slam';r.style.left=p.x+'px';r.style.top=p.y+'px';$('fx').appendChild(r);
+  var a=r.animate([{transform:'translate(-50%,-50%) scale(.3)',opacity:.9},{transform:'translate(-50%,-50%) scale(1.6)',opacity:0}],{duration:420,easing:'ease-out',fill:'both'});a.onfinish=function(){r.remove();};
 }
 // 'Jammer joh': deze kaart kan nu niet.
 function nope(el){
@@ -390,7 +414,7 @@ function runFx(pre,evs){
       showGhost();var sr=rectOf(seatEl(ev.pi))||pileR,P={x:pileR.left+pileR.width/2,y:pileR.top+pileR.height/2};
       var S=ev.pi===v.you?{x:sr.left+sr.width/2,y:Math.min(sr.top+24,(window.innerHeight||800)+40)}:{x:sr.left+sr.width/2,y:sr.top+sr.height/2};
       setTimeout(function(){stretchArm(S,P,pfx);},t+30);
-      t+=950;setTimeout(reset,t);
+      t+=1200;setTimeout(reset,t);
     }else if(ev.t==='draw'){
       ev.cards.forEach(function(c,i){
         var to,el=null,solo=false,cw;
@@ -441,6 +465,7 @@ var Snd=(function(){
     win:function(c,t){[523,659,784,1047].forEach(function(f,i){tone(c,t+i*.12,{type:'triangle',f:f,dur:i===3?.6:.2,g:.22});});},
     end:function(c,t){[392,330,262].forEach(function(f,i){tone(c,t+i*.16,{type:'triangle',f:f,dur:.3,g:.16});});},
     nope:function(c,t){tone(c,t,{type:'triangle',f:233,f2:196,dur:.2,g:.2});tone(c,t+.2,{type:'triangle',f:185,f2:130,dur:.35,g:.2});},
+    scrape:function(c,t){noise(c,t,{f:1800,f2:900,dur:.5,q:6,a:.03,g:.16});noise(c,t+.05,{f:3600,f2:2200,dur:.42,q:8,g:.08});},
     stretch:function(c,t){tone(c,t,{f:160,f2:760,dur:.34,g:.22});noise(c,t,{f:900,f2:2400,dur:.3,q:2,g:.12});},
     snap:function(c,t){tone(c,t,{f:760,f2:140,dur:.4,g:.2});},
     alarm:function(c,t){[0,.22,.44].forEach(function(d){tone(c,t+d,{type:'square',f:880,dur:.1,g:.07});tone(c,t+d+.11,{type:'square',f:660,dur:.1,g:.07});});},
@@ -464,7 +489,7 @@ function sfx(evs,wasMine){
       if(ev.t==='play'){if(wild)Snd.play('joker',land+120);else if(SP[ev.as])Snd.play(SP[ev.as],land);if(ev.junk)Snd.play('junk',land+500);}
       t+=400;if(ev.t==='flipfail')t+=520;if(wild&&ev.t!=='flipfail')t+=950;if(ev.junk)t+=1700;
     }else if(ev.t==='burn'){Snd.play('burn',t+30);Snd.play('bin',t+1550);t+=1750;}
-    else if(ev.t==='pick'){Snd.play('stretch',t+30);Snd.play('pick',t+400);Snd.play('snap',t+480);t+=950;}
+    else if(ev.t==='pick'){Snd.play('stretch',t+30);Snd.play('pick',t+490);Snd.play('scrape',t+590);Snd.play('snap',t+700);t+=1200;}
     else if(ev.t==='draw'){ev.cards.forEach(function(c,i){Snd.play('draw',t+i*90+250);});t+=340+90*(ev.cards.length-1);}
     else if(ev.t==='win'){Snd.play(ev.pi===v.you?'win':'end',t);}
   });
