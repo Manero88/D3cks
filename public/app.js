@@ -100,7 +100,6 @@ function req(){
   if(!v.pileN)return'Vrije zet: elke kaart mag.';
   var t=v.top;
   if(v.sevenBy!==null)return t===7?'7-regel: speel 6 of lager.':t===6?'7-regel: speel een 6.':'7-regel: speel '+t+' tot en met 6.';
-  if(v.raise)return'De 7-regel is voorbij: speel 7 of hoger.';
   if(t===2)return'Vrije zet: elke kaart mag.';
   return'Speel '+lab(t)+' of hoger.';
 }

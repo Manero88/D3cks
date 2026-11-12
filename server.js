@@ -91,7 +91,7 @@ function view(room, pi) {
     code: room.code, phase: g.phase, you: pi, host: room.players.findIndex(p => p.id === room.hostId),
     deck: g.deck.length, deckD: g.deck.length ? g.deck[g.deck.length - 1].d : 0,
     pile: g.pile.slice(-5), pileN: g.pile.length, top: E.topVal(g), burned: g.burned,
-    dir: g.dir, turn: g.turn, sevenBy: g.sevenBy, raise: g.raise, endgame: g.endgame, winner: g.winner,
+    dir: g.dir, turn: g.turn, sevenBy: g.sevenBy, endgame: g.endgame, winner: g.winner,
     log: g.log.slice(-6),
     players: g.players.map((p, i) => {
       const rp = room.players[i];

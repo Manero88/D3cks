@@ -11,7 +11,7 @@ function strength(c){return c.k!=='n'?100:c.v===10?90:c.v===2?80:c.v;}
 function botSwap(p){const all=p.hand.concat(p.open).sort(function(a,b){return strength(b)-strength(a);});p.open=all.slice(0,3);p.hand=all.slice(3);}
 function newGame(seed,specs,startIdx){
   specs=specs&&specs.length?specs:[{name:'Jij',bot:false},{name:'Noor',bot:true},{name:'Sem',bot:true}];
-  const g={rs:seed|0,deck:[],pile:[],burned:0,dir:1,turn:startIdx||0,start:startIdx||0,phase:'swap',sevenBy:null,raise:false,endgame:false,dqDone:false,winner:null,pendingBlind:null,log:[],n:0,fx:[],
+  const g={rs:seed|0,deck:[],pile:[],burned:0,dir:1,turn:startIdx||0,start:startIdx||0,phase:'swap',sevenBy:null,endgame:false,dqDone:false,winner:null,pendingBlind:null,log:[],n:0,fx:[],
     players:specs.map(function(p){return{name:p.name,bot:!!p.bot,hand:[],open:[],blind:[],drew:false,out:false};})};
   let id=0;
   for(let d=1;d<=3;d++){
@@ -47,7 +47,6 @@ function canValue(g,v){
     if(top===7)return true;
     return v>=top;
   }
-  if(g.raise)return v>=7;
   if(top===2)return true;
   if(v===7)return top<=7;
   return v>=top;
@@ -68,7 +67,8 @@ function advance(g,from,steps){
   const n=g.players.length;let i=from;
   for(let s=0;s<steps;s++){do{i=(i+g.dir+n)%n;}while(g.players[i].out);}
   g.turn=i;
-  if(g.sevenBy===i){g.sevenBy=null;g.raise=true;}
+  // De 7-regel eindigt als de 7-speler weer aan de beurt is. Daarna geldt gewoon weer gelijk of hoger.
+  if(g.sevenBy===i)g.sevenBy=null;
 }
 function win(g,pi){g.phase='over';g.winner=pi;fxp(g,{t:'win',pi:pi});say(g,g.players[pi].name+' speelt de laatste kaart weg en wint.','win');}
 function dq(g){
@@ -88,7 +88,7 @@ function refill(g,pi){
 }
 function place(g,pi,card,as,pre,from){
   const p=g.players[pi],wasEmpty=g.pile.length===0;
-  g.pile.push({c:card,as:as});g.raise=false;fxp(g,{t:'play',pi:pi,c:card,as:as,from:from||'hand'});
+  g.pile.push({c:card,as:as});fxp(g,{t:'play',pi:pi,c:card,as:as,from:from||'hand'});
   const run=runLen(g);
   let msg=(pre||p.name+' speelt '+cardWord(card,as))+'.';
   const burn=(as===10&&!wasEmpty)||run>=4;
@@ -111,7 +111,7 @@ function place(g,pi,card,as,pre,from){
 function pickUp(g,pi,msg){
   const p=g.players[pi],n=g.pile.length;
   g.pile.forEach(function(e){p.hand.push(e.c);});
-  g.pile=[];g.sevenBy=null;g.raise=false;fxp(g,{t:'pick',pi:pi});
+  g.pile=[];g.sevenBy=null;fxp(g,{t:'pick',pi:pi});
   say(g,msg||p.name+' kan niet spelen en pakt de stapel ('+n+(n===1?' kaart':' kaarten')+').','pick');
   dq(g);if(g.phase==='over')return;
   advance(g,pi,1);

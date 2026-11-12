@@ -11,7 +11,10 @@ const H=(...vs)=>vs.map((v,i)=>({id:800+i,v,k:'n',d:1}));
 let g=mk([7,6],{sevenBy:2});
 assert(E.canValue(g,6)&&E.canValue(g,2)&&E.canValue(g,7)&&E.canValue(g,10)&&!E.canValue(g,5)&&!E.canValue(g,9)&&!E.canValue(g,8));
 g=mk([7],{sevenBy:2});assert(E.canValue(g,3)&&!E.canValue(g,8)&&!E.canValue(g,14));
-g=mk([5],{raise:true});assert(E.canValue(g,13)&&E.canValue(g,7)&&!E.canValue(g,6));
+// einde 7-regel: P0 speelt 7, P1 5, P2 5; P0 is weer aan de beurt en speelt gewoon vanaf 5
+g=mk([4]);g.players[0].hand=H(7,9,9);g.players[1].hand=H(5,13,13);g.players[2].hand=H(5,13,13);g.turn=0;
+E.playCard(g,0,800);assert(g.sevenBy===0);E.playCard(g,1,800);E.playCard(g,2,800);
+assert(g.turn===0&&g.sevenBy===null,'7-regel voorbij');assert(E.canValue(g,5)&&E.canValue(g,6)&&!E.canValue(g,4),'gelijk of hoger dan 5');
 g=mk([11]);assert(!E.canValue(g,7)&&E.canValue(g,10)&&!E.wildValues(g).includes(10)&&!E.wildValues(g).includes(7)&&E.wildValues(g).includes(12));
 g=mk([14]);assert(E.canValue(g,10)&&!E.canValue(g,13));
 g=mk([{as:9},14]);assert(E.wildValues(g).includes(10));
