@@ -289,10 +289,10 @@ function junkie(card){
 // Een rekbare arm schiet naar de stapel, slaat met de hand op tafel en trekt de kaarten terug.
 // Bij het terugtrekken krassen de vingers over het vilt; die krassen vervagen daarna.
 function stretchArm(S,P,ghost){
-  var felt=document.querySelector('.felt'),fr=felt?felt.getBoundingClientRect():{left:0,top:0,width:9999,height:9999};
+  var felt=document.querySelector('.felt'),fr=felt?felt.getBoundingClientRect():{left:0,top:0,right:9999,bottom:9999,width:9999,height:9999};
   var cid='fc'+Date.now();
   var sc=document.createElement('div');sc.className='scratchfx';
-  sc.innerHTML='<svg width="100%" height="100%"><defs><clipPath id="'+cid+'"><rect x="'+fr.left+'" y="'+fr.top+'" width="'+fr.width+'" height="'+fr.height+'" rx="30"/></clipPath></defs><g clip-path="url(#'+cid+')"><g class="g1"></g><g class="g2" transform="translate(-.8 -.8)"></g></g></svg>';
+  sc.innerHTML='<svg width="100%" height="100%"><defs><clipPath id="'+cid+'"><polygon points="'+(fr.left+fr.width*.065)+','+(fr.top+8)+' '+(fr.right-fr.width*.065)+','+(fr.top+8)+' '+(fr.right-6)+','+(fr.bottom-14)+' '+(fr.left+6)+','+(fr.bottom-14)+'"/></clipPath></defs><g clip-path="url(#'+cid+')"><g class="g1"></g><g class="g2" transform="translate(-.8 -.8)"></g></g></svg>';
   var box=document.createElement('div');box.className='armfx';
   box.innerHTML='<svg width="100%" height="100%"><ellipse class="hshadow" rx="17" ry="6"/><path class="a1"/><path class="a2"/><g class="hand"><g class="fing"><path d="M6 -9 L22 -15 M10 -3 L27 -5 M10 3 L27 5 M6 9 L22 15"/></g><path class="thumb" d="M0 -11 L6 -22"/><circle r="12"/></g></svg>';
   $('fx').appendChild(sc);$('fx').appendChild(box);
@@ -566,6 +566,16 @@ var hash=(location.hash||'').slice(1).toUpperCase().replace(/[^A-Z]/g,'').slice(
 try{sess=JSON.parse(loadTab()||'null');}catch(e){sess=null;}
 if(sess&&hash&&sess.code!==hash){sess=null;storeTab(null);}
 if(hash.length===4)$('code').value=hash;
+// Thema: automatisch volgt het systeem (licht of blauw), de rest wordt vastgezet en onthouden.
+var THEME_ATTR={blauw:'dark',licht:'light',zwart:'zwart',casino:'casino'};
+function applyTheme(t){
+  if(!THEME_ATTR[t])t='auto';
+  if(t==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',THEME_ATTR[t]);
+  store('d3cks-theme',t==='auto'?null:t);
+  [].forEach.call(document.querySelectorAll('[data-theme-select]'),function(s){s.value=t;});
+}
+document.addEventListener('change',function(e){if(e.target.matches&&e.target.matches('[data-theme-select]'))applyTheme(e.target.value);});
+applyTheme(load('d3cks-theme')||'auto');
 sndLabel();
 show('home');
 connect();
