@@ -201,6 +201,26 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .cuthalf{position:fixed;pointer-events:none}
 .predeal #opps .slots .card,.predeal #opps .fan .card,.predeal #me .slots .card,.predeal #me .hand .card{visibility:hidden}
 .seatno{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--table);font:800 13px/1 var(--font-d);flex:none}
+.modalbg{position:fixed;inset:0;z-index:62;background:color-mix(in srgb,#000 55%,transparent);display:grid;place-items:center;padding:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.modal{width:min(760px,100%);max-height:calc(100vh - 32px);overflow-y:auto;background:var(--panel);color:var(--ink);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:14px;box-shadow:0 30px 60px var(--shadow);animation:pop .2s ease-out}
+.sumwin{display:flex;align-items:center;gap:12px;font:800 clamp(22px,5vw,30px)/1.1 var(--font-d)}
+.sumwin .crown{width:42px;height:42px;color:var(--d3);flex:none}
+.awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.award{background:var(--table);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;animation:pop .3s ease-out both;animation-delay:var(--ad,0s)}
+.award .at{font:800 16px/1.2 var(--font-d);color:var(--hot)}
+.award .aw{font:700 15px/1.25 var(--font-b);overflow-wrap:anywhere}
+.award .ad{font-size:12.5px;color:var(--muted)}
+.sumtable{overflow-x:auto}
+.sumtable table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums;min-width:540px}
+.sumtable th,.sumtable td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+.sumtable th:first-child,.sumtable td:first-child{text-align:left}
+.sumtable th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.sumtable tr.w td{font-weight:800}
+.nudgebtn{background:none;border:0;padding:0;cursor:pointer;color:var(--ink);display:inline-flex;align-items:baseline;gap:5px;font:700 17px/1.1 var(--font-d);text-decoration:underline dotted;text-underline-offset:4px}
+.nudgebtn .nh{font:700 10px var(--font-b);letter-spacing:.06em;text-transform:uppercase;color:var(--hot);text-decoration:none}
+.nudgebtn:focus-visible{outline:3px solid var(--ink);outline-offset:3px;border-radius:4px}
+.shake{animation:shk .5s ease-in-out 2}
+@keyframes shk{20%{translate:-8px 0}40%{translate:8px 0}60%{translate:-6px 0}80%{translate:4px 0}}
 .michelp{display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.4}
 .michelp p{margin:0} .michelp ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .chatlog{list-style:none;margin:0;padding:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px;max-height:240px}
@@ -328,7 +348,7 @@ details ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;g
   #chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} #chips::-webkit-scrollbar{display:none}
   .opps{grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px}
   .opps .seat{padding:7px 8px;gap:4px;border-radius:12px}
-  .opps .seat-h{gap:3px 6px} .opps .nm{font-size:14px} .opps .tag{font-size:9.5px} .opps .pill{font-size:9px;padding:2px 6px}
+  .opps .seat-h{gap:3px 6px} .opps .nm,.opps .nudgebtn{font-size:14px} .opps .tag{font-size:9.5px} .opps .pill{font-size:9px;padding:2px 6px}
   .opps .sm{--cw:26px} .opps .slots{padding-top:6px} .opps .seat-row{gap:4px 8px}
   .opps .fan{min-height:34px;padding:2px 4px 0} .opps .fan .card{margin-left:-15px}
   .opps .handinfo{font-size:11.5px;gap:6px} .opps .handinfo b{font-size:15px} .opps .handinfo>span:last-child{white-space:nowrap}
@@ -402,7 +422,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
 .rules b{color:var(--ink)}
 .conn{position:fixed;left:50%;top:max(10px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--hot);color:var(--paper);font-weight:700;border-radius:999px;padding:6px 14px;box-shadow:0 6px 14px var(--shadow);white-space:nowrap}
 @media (max-width:700px){ .lobby-grid{grid-template-columns:minmax(0,1fr)} }
-@media (prefers-reduced-motion:reduce){ .talkbtn.on,.seat.talking::after,.plist li.talking::after,.pill.last,.herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*,.revealed,.junk>.c-main,.c-syr{animation:none} .c-syr{display:none} }
+@media (prefers-reduced-motion:reduce){ .shake,.award,.talkbtn.on,.seat.talking::after,.plist li.talking::after,.pill.last,.herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*,.revealed,.junk>.c-main,.c-syr{animation:none} .c-syr{display:none} }
 </style>
 </head>
 <body>
@@ -487,7 +507,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   <section class="screen" id="game" hidden>
     <header class="bar">
       <h1 class="mark" aria-label="3Decks">D<b>3</b>cks</h1>
-      <div class="tools"><select class="themesel" data-theme-select aria-label="Thema"><option value="auto">Thema: automatisch</option><option value="blauw">Thema: blauw</option><option value="licht">Thema: licht</option><option value="zwart">Thema: zwart</option><option value="casino">Thema: casino</option></select><button class="btn sndBtn" type="button" data-act="sound" aria-pressed="true">Geluid aan</button><button class="btn" id="leaveBtn" type="button" data-act="leave">Verlaten</button></div>
+      <div class="tools"><select class="themesel" data-theme-select aria-label="Thema"><option value="auto">Thema: automatisch</option><option value="blauw">Thema: blauw</option><option value="licht">Thema: licht</option><option value="zwart">Thema: zwart</option><option value="casino">Thema: casino</option></select><button class="btn txtBtn" type="button" data-act="text" aria-pressed="true">Tekst aan</button><button class="btn sndBtn" type="button" data-act="sound" aria-pressed="true">Geluid aan</button><button class="btn" id="leaveBtn" type="button" data-act="leave">Verlaten</button></div>
     </header>
     <div class="chips" id="chips"></div>
     <p class="err" id="gameErr" role="alert" hidden></p>
@@ -527,6 +547,13 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   <div class="quick" id="quickRow"></div>
   <form class="chatform" id="chatForm"><input id="chatInput" maxlength="80" autocomplete="off" placeholder="Of typ zelf iets" aria-label="Bericht"><button class="btn" type="submit">Stuur</button></form>
 </section>
+<div class="modalbg" id="sumModal" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="sumTitle">
+    <div class="sheet-h"><strong id="sumTitle">Samenvatting</strong><button class="btn small" type="button" data-act="sumClose">Sluiten</button></div>
+    <div id="sumBody"></div>
+    <div class="actions" id="sumActs"></div>
+  </section>
+</div>
 <section class="sheet" id="micSheet" hidden aria-label="Microfoon">
   <div class="sheet-h"><strong>Microfoon</strong><button class="btn small" type="button" data-act="micClose">Sluiten</button></div>
   <div id="micHelp" class="michelp"></div>

@@ -74,6 +74,13 @@ function onMsg(m){
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
   else if(m.t==='left')goHome();
+  else if(m.t==='nudge'){
+    bannerQ.unshift({big:'Hé, jij bent aan de beurt!',small:m.from+' port je.',hot:true});nextBanner();
+    Snd.play('knock');try{if(navigator.vibrate)navigator.vibrate([180,90,180,90,260]);}catch(e){}
+    var me=$('me');me.classList.remove('shake');void me.offsetWidth;me.classList.add('shake');setTimeout(function(){me.classList.remove('shake');},1100);
+    flashTitle(m.from+' port je!');
+  }
+  else if(m.t==='nudged'){var se=$('opps').querySelector('[data-seat="'+m.seat+'"]');if(se){toast(m.from+' port '+m.name,se.getBoundingClientRect());se.classList.remove('shake');void se.offsetWidth;se.classList.add('shake');setTimeout(function(){se.classList.remove('shake');},1100);}Snd.play('knock');}
   else if(m.t==='ptt'){if(m.on)talkingSeats[m.seat]=1;else delete talkingSeats[m.seat];applyTalking();}
   else if(m.t==='chatlog'){chatItems=(m.items||[]).slice(-50);renderChat();}
   else if(m.t==='chat'){
@@ -162,7 +169,7 @@ function render(){
     var rh='';if(p.cards&&p.cards.length){p.cards.slice().sort(function(a,b){return(a.k==='n'?a.v:99)-(b.k==='n'?b.v:99);}).forEach(function(c,j){rh+=face(c,{cls:'revealed',attr:' style="--rd:'+(.5+j*.04).toFixed(2)+'s"'});});}
     else p.backs.forEach(function(d,j){fan+=back(d,'',' style="--r:'+((j-m)*8).toFixed(1)+'deg"');});
     var where=p.out?'Ligt uit het spel':v.phase==='swap'?(p.ready?'Klaar':'Legt kaarten goed'):v.endgame&&p.zone==='open'?'Speelt open kaarten':v.endgame&&p.zone==='blind'?'Speelt blinde kaarten':'';
-    oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h"><span class="nm">'+esc(p.name)+'</span>'+(p.bot?'<span class="tag">bot</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
+    oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h">'+(turn&&!p.bot&&!p.away&&v.phase==='play'?'<button type="button" class="nudgebtn" data-act="nudge" title="Tik om '+esc(p.name)+' te porren" aria-label="'+esc(p.name)+' porren">'+esc(p.name)+'<span class="nh">por</span></button>':'<span class="nm">'+esc(p.name)+'</span>')+(p.bot?'<span class="tag">bot</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
       (turn?'<span class="pill">aan de beurt</span>':'')+(lastOne(p)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===i?'<span class="pill">winnaar</span>':'')+'</div>'+
       '<div class="seat-row sm"><div class="tbl">'+slotsHtml(p,false,st)+'</div><div class="handinfo">'+(rh?'':'<span class="fan">'+fan+'</span>')+'<span><b>'+p.n+'</b> in hand</span></div></div>'+(rh?'<div class="rhand sm" aria-label="Hand van '+esc(p.name)+'">'+rh+'</div>':'')+
       (where?'<div class="tag">'+where+'</div>':'')+'</div>';
@@ -201,6 +208,7 @@ function render(){
     now=v.winner===you?'Jij wint dit potje.':v.winner===null?'Niemand wint dit potje.':esc(v.players[v.winner].name)+' wint dit potje.';
     if(v.host===you||v.host<0||v.players[v.host].away){sub='Volgend potje trekt iedereen weer een kaart.';acts='<button type="button" class="btn main" data-act="again">Nog een potje</button>';}
     else sub='Wachten tot '+esc(v.players[v.host].name)+' een nieuw potje start.';
+    acts+='<button type="button" class="btn" data-act="summary">Samenvatting</button>';
   }else if(myTurn){
     if(picker){now='Kies de waarde van je '+(picker.card.k==='joker'?'joker':'scorekaart')+'.';sub=req();}
     else if(zone==='blind'){now='Jouw beurt. Speel een blinde kaart.';sub=req();}
@@ -209,7 +217,9 @@ function render(){
   }else{now=esc(v.players[v.turn].name)+' is aan de beurt.';sub=req();}
   var lg='';
   v.log.slice(-5).reverse().forEach(function(l){lg+='<li class="'+l.k+'">'+esc(l.t)+'</li>';});
-  $('info').innerHTML='<p class="now">'+now+'</p>'+(sub?'<p class="sub">'+sub+'</p>':'')+(acts?'<div class="actions">'+acts+'</div>':'')+extra+'<ol class="log" aria-live="polite">'+lg+'</ol>';
+  if(showText)$('info').innerHTML='<p class="now">'+now+'</p>'+(sub?'<p class="sub">'+sub+'</p>':'')+(acts?'<div class="actions">'+acts+'</div>':'')+extra+'<ol class="log" aria-live="polite">'+lg+'</ol>';
+  else $('info').innerHTML=(acts?'<div class="actions">'+acts+'</div>':'')+extra;
+  $('info').hidden=!showText&&!acts&&!extra;
 
   var groups={},keys=[];
   v.hand.forEach(function(c){var key=c.k==='n'?c.v:c.k;if(!groups[key]){groups[key]=[];keys.push(key);}groups[key].push(c);});
@@ -321,6 +331,53 @@ function dealFx(delay){
   dealTimers.push(setTimeout(function(){$('app').classList.remove('predeal');$('deckCap').innerHTML='Deck <b>'+v.deck+'</b>';var dc=$('deckChipN');if(dc)dc.textContent=v.deck;},delay+total*gap+500));
 }
 
+/* ---------- speltekst aan/uit ---------- */
+var showText=load('d3cks-text')!=='0';
+function txtLabel(){[].forEach.call(document.querySelectorAll('.txtBtn'),function(b){b.textContent=showText?'Tekst aan':'Tekst uit';b.setAttribute('aria-pressed',showText?'true':'false');});}
+// Titel van het tabblad laten knipperen als je gepord wordt en het scherm niet voor je hebt.
+var flashT=null;
+function flashTitle(msg){clearInterval(flashT);var on=0,n=0,orig='● Jouw beurt · 3Decks';flashT=setInterval(function(){document.title=(on=!on)?msg:orig;if(++n>12||!document.hidden&&n>4){clearInterval(flashT);document.title=orig;}},700);}
+
+/* ---------- samenvatting aan het eind ----------
+   Prijzen en statistieken uit de cijfers die de server na het potje meestuurt. */
+var AWARDS=[
+  {k:'tens',t:'Vuurduivel',d:'meeste 10\'en gespeeld',f:function(x){return x+'× een 10';}},
+  {k:'burns',t:'Pyromaan',d:'meeste stapels verbrand',f:function(x){return x+' stapels';}},
+  {k:'picks',t:'Rubberarm',d:'meest gestrekt',f:function(x,s){return x+'× gestrekt, '+s.picked+' kaarten';}},
+  {k:'maxPick',t:'Grootste hap',d:'grootste stapel in één keer',f:function(x){return x+' kaarten in één keer';}},
+  {k:'comeback',t:'Comeback',d:'van de meeste kaarten naar de minste',f:function(x,s){return 'had er '+s.peak+', nog '+s.left+' over';}},
+  {k:'jacks',t:'Junkie',d:'meeste J\'s gespeeld',f:function(x){return x+'× een J';}},
+  {k:'twos',t:'Draaier',d:'meeste 2\'en gespeeld',f:function(x){return x+'× gedraaid';}},
+  {k:'eights',t:'Overslaner',d:'meeste 8\'en gespeeld',f:function(x){return x+'× een 8';}},
+  {k:'wilds',t:'Narrenkoning',d:'meeste jokers en scorekaarten',f:function(x){return x+' narren';}},
+  {k:'blindFail',t:'Pechvogel',d:'meeste mislukte blinde kaarten',f:function(x){return x+'× mis';}}
+];
+var CROWN='<svg class="crown" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.8 10H4.8z"/><rect x="4.5" y="19" width="15" height="2.2" rx="1"/></svg>';
+function openSummary(){
+  if(!v||v.phase!=='over'||!v.players[0].st)return;
+  var rows=v.players.map(function(p,i){
+    var s=p.st,left=p.n+p.open.length+p.blind.length;
+    return{i:i,name:i===v.you?'Jij':p.name,s:s,left:left,out:p.out,comeback:Math.max(0,s.peak-left)};
+  });
+  var aw='',ai=0;
+  AWARDS.forEach(function(a){
+    var val=function(r){return a.k==='comeback'?r.comeback:r.s[a.k];},max=Math.max.apply(null,rows.map(val));
+    if(!max)return;
+    var wins=rows.filter(function(r){return val(r)===max;}),w=wins[0],s2={picked:w.s.picked,peak:w.s.peak,left:w.left};
+    aw+='<div class="award" style="--ad:'+(ai++*.07).toFixed(2)+'s"><span class="at">'+a.t+'</span><span class="aw">'+wins.map(function(r){return esc(r.name);}).join(' & ')+'</span><span class="ad">'+esc(a.f(max,s2))+' · '+a.d+'</span></div>';
+  });
+  var tb='<div class="sumtable"><table><thead><tr><th>Speler</th><th>Gespeeld</th><th>10\'en</th><th>Verbrand</th><th>Gestrekt</th><th>Grootste hap</th><th>Meeste kaarten</th><th>Over</th></tr></thead><tbody>';
+  rows.slice().sort(function(a,b){return(a.i===v.winner?-1:0)-(b.i===v.winner?-1:0)||a.left-b.left;}).forEach(function(r){
+    tb+='<tr'+(r.i===v.winner?' class="w"':'')+'><td>'+esc(r.name)+(r.i===v.winner?' (winnaar)':r.out?' (eruit)':'')+'</td><td>'+r.s.played+'</td><td>'+r.s.tens+'</td><td>'+r.s.burns+'</td><td>'+r.s.picks+'× ('+r.s.picked+')</td><td>'+r.s.maxPick+'</td><td>'+r.s.peak+'</td><td>'+r.left+'</td></tr>';
+  });
+  tb+='</tbody></table></div>';
+  var wn=v.winner===null?'Niemand wint dit potje':(v.winner===v.you?'Jij wint!':esc(v.players[v.winner].name)+' wint!');
+  $('sumBody').innerHTML='<div class="sumwin">'+CROWN+'<span>'+wn+'</span></div><div class="awards">'+aw+'</div>'+tb;
+  var host=v.host===v.you||v.host<0||v.players[v.host].away;
+  $('sumActs').innerHTML=(host?'<button type="button" class="btn main" data-act="again">Nog een potje</button>':'')+'<button type="button" class="btn" data-act="sumClose">Sluiten</button>';
+  closeSheets();$('sumModal').hidden=false;
+}
+
 /* ---------- grote meldingen ---------- */
 function cardsLeft(p,vv){return(vv||v).deck>0?99:p.n+p.open.length+p.blind.length;}
 function lastOne(p){return v.phase==='play'&&!p.out&&cardsLeft(p)===1;}
@@ -328,6 +385,7 @@ var bannerQ=[],bannerBusy=false;
 // Vergelijkt het vorige en nieuwe spelbeeld en zet meldingen klaar voor na de animaties.
 function announce(pv,nv,delay){
   if(!pv)return;
+  if(pv.phase==='play'&&nv.phase==='over')setTimeout(openSummary,Math.max(0,delay||0)+2600);
   var q=[];
   if(pv.phase==='draw'&&nv.phase==='cut'){var mine=nv.start===nv.you,wn=nv.players[nv.start].name;q.push({big:mine?'Jij begint!':wn+' begint!',small:'Hoogste kaart. '+(mine?'Jij coupeert':wn+' coupeert')+' het deck.'});}
   if(!pv.endgame&&nv.endgame)q.push({big:'Endgame!',small:'Het deck is leeg. Speel je hand leeg, dan je tafelkaarten.',hot:true});
@@ -582,6 +640,7 @@ var Snd=(function(){
     pttOn:function(c,t){tone(c,t,{f:660,f2:990,dur:.07,g:.08});},
     pttOff:function(c,t){tone(c,t,{f:990,f2:660,dur:.07,g:.06});},
     snip:function(c,t){noise(c,t,{type:'highpass',f:3500,dur:.05,g:.25});noise(c,t+.07,{type:'highpass',f:4200,dur:.04,g:.2});},
+    knock:function(c,t){[0,.16,.32].forEach(function(d){noise(c,t+d,{type:'lowpass',f:500,f2:180,dur:.09,g:.5});tone(c,t+d,{f:150,f2:90,dur:.08,g:.25});});},
     chat:function(c,t){tone(c,t,{f:880,f2:1320,dur:.12,g:.1});},
     turn:function(c,t){tone(c,t,{f:1047,dur:.35,g:.15});tone(c,t+.08,{f:1568,dur:.3,g:.08});}
   };
@@ -780,6 +839,10 @@ function act(d,el){
     case'copy':copyInvite();return;
     case'chat':if($('chatSheet').hidden){closeSheets();$('chatSheet').hidden=false;unread=0;renderChat();var lg=$('chatLog');lg.scrollTop=lg.scrollHeight;}else closeSheets();return;
     case'chatClose':closeSheets();return;
+    case'text':showText=!showText;store('d3cks-text',showText?'1':'0');txtLabel();break;
+    case'summary':openSummary();return;
+    case'sumClose':$('sumModal').hidden=true;return;
+    case'nudge':send({t:'nudge'});return;
     case'swapSeat':send({t:'swapSeat',id:d.id});return;
     case'shuffleSeats':send({t:'shuffleSeats'});return;
     case'cutHere':cutStep=2;break;
@@ -823,7 +886,7 @@ function act(d,el){
     case'cancel':picker=null;break;
     case'pickup':if(!busy&&send({t:'pickup'}))busy=true;break;
     case'ready':send({t:'ready'});sel=null;break;
-    case'again':send({t:'again'});break;
+    case'again':$('sumModal').hidden=true;send({t:'again'});break;
     case'sound':Snd.toggle();sndLabel();if(Snd.isOn())Snd.play('card',60);return;
   }
   if(screen==='game'&&v)render();
@@ -857,7 +920,7 @@ window.addEventListener('appinstalled',function(){installEvt=null;$('installBtn'
 if(!standalone&&/iPhone|iPad|iPod/.test(navigator.userAgent||''))$('iosHint').hidden=false;
 document.addEventListener('change',function(e){if(e.target.matches&&e.target.matches('[data-theme-select]'))applyTheme(e.target.value);});
 applyTheme(load('d3cks-theme')||'auto');
-sndLabel();
+sndLabel();txtLabel();
 show('home');
 connect();
 })();

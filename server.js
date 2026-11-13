@@ -13,6 +13,8 @@ const PORT = process.env.PORT || 3000;
 const BOT_DELAY = +process.env.BOT_DELAY || 1000;      // denktijd van een bot (ms)
 const AWAY_DELAY = +process.env.AWAY_DELAY || 15000;   // zo lang wachten we op een speler zonder verbinding
 const FX_WAIT = process.env.FX_WAIT === '0' ? 0 : 1;        // bots wachten tot animaties klaar zijn (0 = uit, voor tests)
+const NUDGE_AFTER = +process.env.NUDGE_AFTER || 10000;    // porren mag pas na zoveel ms in dezelfde beurt
+const NUDGE_GAP = +process.env.NUDGE_GAP || 20000;        // en daarna niet vaker dan eens per zoveel ms
 const DRAW_SHOW = +process.env.DRAW_SHOW || 1800;          // zo lang blijven de getrokken kaarten in beeld
 const ROOM_TTL = +process.env.ROOM_TTL || 10 * 60000;  // lege kamer opruimen na 10 minuten
 const MAX_PLAYERS = 8, MIN_PLAYERS = 3;
@@ -101,7 +103,8 @@ function view(room, pi) {
       return { name: p.name, bot: rp.bot, away: !rp.bot && (!rp.connected || rp.left), out: p.out, ready: rp.ready,
         n: p.hand.length, backs: p.hand.slice(0, 7).map(c => c.d), open: p.open, zone: E.zoneOf(p),
         // Aan het eind van het potje gaat alles open: blinde kaarten en handen van iedereen.
-        blind: reveal ? p.blind : p.blind.map(c => c.d), cards: reveal ? p.hand : null };
+        blind: reveal ? p.blind : p.blind.map(c => c.d), cards: reveal ? p.hand : null,
+        st: reveal ? p.st : null };
     }),
     hand: me.hand, legal, myMove,
     pending: g.pendingBlind && g.pendingBlind.pi === pi ? { c: g.pendingBlind.c, values: E.wildValues(g) } : null,
@@ -117,6 +120,9 @@ function fxDuration(fx) {
   return t;
 }
 function broadcastState(room) {
+  // bijhouden sinds wanneer de huidige speler aan de beurt is (voor porren)
+  const tk = room.g.phase + ':' + room.g.turn + ':' + room.g.n;
+  if (tk !== room.turnKey) { room.turnKey = tk; room.turnSince = Date.now(); }
   const g = room.g, fx = g.fx; g.fx = [];
   // Soms verandert een gespeelde J even in een spuit. De server beslist, zodat iedereen hetzelfde ziet.
   fx.forEach(ev => { if (ev.t === 'play' && ev.as === 11 && ev.junk === undefined) ev.junk = Math.random() < 0.35; });
@@ -237,6 +243,22 @@ const handlers = {
     if (!room.g) return broadcastLobby(room);
     broadcastState(room);
     schedule(room, 0);
+  },
+  // Porren: een medespeler tikt op de naam van wie aan de beurt is en lang doet.
+  nudge(ws) {
+    const room = ws.room, g = room && room.g;
+    if (!g || g.phase !== 'play') return;
+    const from = room.players.find(q => q.id === ws.pid), ti = g.turn, target = room.players[ti];
+    if (!from || !target || target.id === ws.pid) return;
+    if (target.bot || target.left) return fail(ws, 'Een bot hoef je niet te porren.');
+    const now = Date.now(), waited = now - (room.turnSince || now);
+    if (waited < NUDGE_AFTER) return fail(ws, 'Geef ' + target.name + ' nog even. Porren kan als iemand langer dan ' + Math.round(NUDGE_AFTER / 1000) + ' seconden aan de beurt is.');
+    room.nudged = room.nudged || {};
+    const last = room.nudged[target.id] || 0;
+    if (now - last < NUDGE_GAP) return fail(ws, target.name + ' is net al gepord. Over ' + Math.ceil((NUDGE_GAP - (now - last)) / 1000) + ' seconden kan het weer.');
+    room.nudged[target.id] = now;
+    send(target.ws, { t: 'nudge', from: from.name });
+    room.players.forEach(q => { if (!q.bot && q !== target) send(q.ws, { t: 'nudged', seat: ti, name: target.name, from: from.name }); });
   },
   cut(ws, m) {
     const room = ws.room; if (!room || !room.g || room.g.phase !== 'cut') return;

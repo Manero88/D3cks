@@ -15,7 +15,8 @@ function newGame(seed,specs,startIdx){
   specs=specs&&specs.length?specs:[{name:'Jij',bot:false},{name:'Noor',bot:true},{name:'Sem',bot:true}];
   const quick=typeof startIdx==='number';
   const g={rs:seed|0,deck:[],pile:[],burned:0,dir:1,turn:startIdx||0,start:startIdx||0,phase:'swap',draws:[],sevenBy:null,endgame:false,dqDone:false,winner:null,pendingBlind:null,log:[],n:0,fx:[],
-    players:specs.map(function(p){return{name:p.name,bot:!!p.bot,hand:[],open:[],blind:[],drew:false,out:false};})};
+    players:specs.map(function(p){return{name:p.name,bot:!!p.bot,hand:[],open:[],blind:[],drew:false,out:false,
+      st:{played:0,tens:0,burns:0,picks:0,picked:0,maxPick:0,twos:0,sevens:0,eights:0,jacks:0,aces:0,wilds:0,blindFail:0,peak:0}};})};
   let id=0;
   for(let d=1;d<=3;d++){
     for(let v=2;v<=14;v++)for(let s=0;s<4;s++)g.deck.push({id:id++,v:v,k:'n',d:d});
@@ -25,9 +26,11 @@ function newGame(seed,specs,startIdx){
   if(quick)deal(g);else drawForStart(g);
   return g;
 }
+// Statistieken per speler voor de samenvatting aan het eind.
+function peak(p){const n=p.hand.length+p.open.length+p.blind.length;if(n>p.st.peak)p.st.peak=n;}
 function deal(g){
   ['blind','open','hand'].forEach(function(z){g.players.forEach(function(p){for(let i=0;i<3;i++)p[z].push(g.deck.pop());});});
-  g.players.forEach(function(p){if(p.bot)botSwap(p);});
+  g.players.forEach(function(p){if(p.bot)botSwap(p);peak(p);});
   g.phase='swap';
 }
 // Iedereen trekt een kaart; de hoogste begint en coupeert. Joker/scorekaart: die speler trekt opnieuw.
@@ -122,10 +125,12 @@ function refill(g,pi){
   const p=g.players[pi],got=[];
   while(p.hand.length<3&&g.deck.length){const c=g.deck.pop();p.hand.push(c);got.push(c);p.drew=true;}
   if(got.length)fxp(g,{t:'draw',pi:pi,cards:got});
+  peak(p);
   if(!g.deck.length&&!g.endgame){g.endgame=true;fxp(g,{t:'endgame'});say(g,'Het deck is leeg. De endgame begint.','end');}
 }
 function place(g,pi,card,as,pre,from){
-  const p=g.players[pi],wasEmpty=g.pile.length===0;
+  const p=g.players[pi],wasEmpty=g.pile.length===0,st=p.st;
+  st.played++;if(as===10)st.tens++;if(as===2)st.twos++;if(as===7)st.sevens++;if(as===8)st.eights++;if(as===11)st.jacks++;if(as===14)st.aces++;if(card.k!=='n')st.wilds++;
   g.pile.push({c:card,as:as});fxp(g,{t:'play',pi:pi,c:card,as:as,from:from||'hand'});
   const run=runLen(g);
   let msg=(pre||p.name+' speelt '+cardWord(card,as))+'.';
@@ -133,7 +138,7 @@ function place(g,pi,card,as,pre,from){
   if(as===2){g.dir=-g.dir;g.sevenBy=null;msg+=' De richting draait om.';fxp(g,{t:'dir'});}
   let skips=0;
   if(burn){
-    const n=g.pile.length;g.burned+=n;g.pile=[];g.sevenBy=null;fxp(g,{t:'burn'});
+    const n=g.pile.length;g.burned+=n;g.pile=[];g.sevenBy=null;fxp(g,{t:'burn'});st.burns++;
     msg+=(run>=4&&as!==10?' Vier gelijke kaarten op rij.':'')+' De stapel van '+n+' is verbrand.';
   }else{
     if(as===10)msg+=' Op een lege stapel telt de 10 als gewone 10.';
@@ -149,6 +154,7 @@ function place(g,pi,card,as,pre,from){
 function pickUp(g,pi,msg){
   const p=g.players[pi],n=g.pile.length;
   g.pile.forEach(function(e){p.hand.push(e.c);});
+  p.st.picks++;p.st.picked+=n;if(n>p.st.maxPick)p.st.maxPick=n;peak(p);
   g.pile=[];g.sevenBy=null;fxp(g,{t:'pick',pi:pi});
   say(g,msg||p.name+' kan niet spelen en pakt de stapel ('+n+(n===1?' kaart':' kaarten')+').','pick');
   dq(g);if(g.phase==='over')return;
@@ -171,7 +177,7 @@ function flipBlind(g,pi,i){
   const c=p.blind.splice(i,1)[0];
   if(c.k!=='n'){g.pendingBlind={pi:pi,c:c};return'wild';}
   if(canValue(g,c.v)){place(g,pi,c,c.v,p.name+' draait blind '+word(c.v)+' om en speelt hem','blind');return'ok';}
-  const n=g.pile.length;p.hand.push(c);fxp(g,{t:'flipfail',pi:pi,c:c,as:c.v});
+  const n=g.pile.length;p.hand.push(c);p.st.blindFail++;fxp(g,{t:'flipfail',pi:pi,c:c,as:c.v});
   pickUp(g,pi,p.name+' draait blind '+word(c.v)+' om. Die kan niet, dus de stapel van '+n+' gaat mee de hand in.');return'fail';
 }
 function resolveBlind(g,as){
