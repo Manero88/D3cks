@@ -515,7 +515,7 @@ function sfx(evs,wasMine){
 var chatItems=[],unread=0;
 var QUICK_DEFAULT=['Jammer joh','Haha!','Strekken!','Goed gespeeld','Pas op, laatste kaart!','Wie heeft die 10?','Kom op, spelen!','Nog een potje?'];
 function quickList(){try{var l=JSON.parse(load('d3cks-quick')||'null');if(Array.isArray(l)&&l.length)return l.slice(0,8).map(String);}catch(e){}return QUICK_DEFAULT;}
-function closeSheets(){$('chatSheet').hidden=true;$('quickSheet').hidden=true;}
+function closeSheets(){$('chatSheet').hidden=true;$('quickSheet').hidden=true;$('micSheet').hidden=true;}
 function renderChat(){
   var b=$('chatBadge');b.hidden=!unread;b.textContent=unread>9?'9+':String(unread);
   $('chatBtn').setAttribute('aria-label',unread?'Chat openen, '+unread+' nieuw':'Chat openen');
@@ -559,6 +559,28 @@ function applyTalking(){
     if(el)el.classList.add('talking');
   });
 }
+// Uitleg op maat als de microfoon niet lukt: welke browser/telefoon, en wat er misging.
+function micHelp(reason){
+  var ua=navigator.userAgent||'',android=/Android/i.test(ua),ios=/iPhone|iPad|iPod/i.test(ua)||(/Macintosh/.test(ua)&&'ontouchend' in document);
+  var inApp=/FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|TikTok|musical_ly|Discord|; wv\)|WebView/i.test(ua);
+  var h='',acts='<button class="btn main" type="button" data-act="micClose">Oké</button>';
+  if(inApp||reason==='unsupported'){
+    h='<p>Je speelt nu in de <b>ingebouwde browser van een andere app</b> (zoals Instagram, Facebook of Discord). Die laat de microfoon meestal niet toe.</p>'+
+      '<ol><li>Tik rechtsboven op de <b>drie puntjes</b> (of het deel-icoon).</li><li>Kies <b>Openen in '+(ios?'Safari':'Chrome')+'</b> of <b>Openen in browser</b>.</li><li>Doe daar opnieuw mee met dezelfde code.</li></ol>';
+    acts='<button class="btn" type="button" data-act="micCopy">Kopieer link</button>'+acts;
+  }else if(reason==='NotAllowedError'||reason==='SecurityError'||reason==='PermissionDeniedError'){
+    if(android)h='<p>De microfoon is <b>geblokkeerd</b> voor deze site.</p><ol><li>Tik links van het webadres op het <b>slotje</b> of het <b>instellingen-icoon</b>.</li><li>Kies <b>Machtigingen</b> en zet <b>Microfoon</b> op <b>Toestaan</b>.</li><li>Ververs de pagina en houd de praatknop opnieuw ingedrukt.</li></ol>'+
+      '<p>Werkt het nog niet? Dan mag je browser zelf de microfoon niet gebruiken: ga naar <b>Instellingen</b> van je telefoon, <b>Apps</b>, <b>Chrome</b> (of je browser), <b>Machtigingen</b>, en zet <b>Microfoon</b> aan.</p>';
+    else if(ios)h='<p>De microfoon is <b>geblokkeerd</b> voor deze site.</p><ol><li>Tik in Safari links in de adresbalk op <b>aA</b> (of het instellingen-icoon).</li><li>Kies <b>Website-instellingen</b> en zet <b>Microfoon</b> op <b>Sta toe</b> of <b>Vraag</b>.</li><li>Ververs de pagina en houd de praatknop opnieuw ingedrukt.</li></ol>'+
+      '<p>Staat D3cks als app op je beginscherm? Kijk dan ook bij <b>Instellingen</b>, <b>Apps</b>, <b>Safari</b>, <b>Microfoon</b>.</p>';
+    else h='<p>De microfoon is <b>geblokkeerd</b> voor deze site.</p><ol><li>Klik links van het webadres op het <b>slotje</b> of het instellingen-icoon.</li><li>Zet <b>Microfoon</b> op <b>Toestaan</b>.</li><li>Ververs de pagina.</li></ol><p>Kijk ook of je computer de browser toegang geeft tot de microfoon (in de privacy-instellingen van Windows of macOS).</p>';
+  }else if(reason==='NotFoundError'||reason==='OverconstrainedError'||reason==='DevicesNotFoundError'){
+    h='<p>Er is <b>geen microfoon gevonden</b>. Sluit een headset of microfoon aan en probeer het opnieuw.</p>';
+  }else if(reason==='NotReadableError'||reason==='AbortError'||reason==='TrackStartError'){
+    h='<p>De microfoon is <b>bezet door een andere app</b>, bijvoorbeeld een telefoongesprek, WhatsApp-call of Discord. Sluit die en probeer het opnieuw.</p>';
+  }else h='<p>De microfoon kon niet worden gestart. Ververs de pagina en probeer het opnieuw. Lukt het dan nog niet, open D3cks dan in Chrome of Safari.</p>';
+  closeSheets();$('micHelp').innerHTML=h;$('micActs').innerHTML=acts;$('micSheet').hidden=false;
+}
 var Talk=(function(){
   var RATE=24000,stream=null,actx=null,srcN=null,proc=null,talking=false,stopT=null,maxT=null,nextAt={},vgain=null;
   function enc(x){var s=x<0?-x:x;if(s>1)s=1;return(x<0?128:0)|Math.round(127*Math.log(1+255*s)/Math.log(256));}
@@ -570,7 +592,7 @@ var Talk=(function(){
   }
   function start(){
     if(talking||screen==='home')return;
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){showErr('Praten werkt niet in deze browser.');return;}
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){micHelp('unsupported');return;}
     if(!online){showErr('Geen verbinding met de server.');return;}
     talking=true;clearTimeout(stopT);ui(true);
     if(!actx){var C=window.AudioContext||window.webkitAudioContext;actx=new C();}
@@ -588,7 +610,7 @@ var Talk=(function(){
       srcN.connect(proc);proc.connect(actx.destination);
       send({t:'ptt',on:true});Snd.play('pttOn');
       maxT=setTimeout(stop,15000);
-    },function(){talking=false;ui(false);showErr('Geen toegang tot de microfoon. Sta het toe in je browserinstellingen.');});
+    },function(err){talking=false;ui(false);micHelp(err&&err.name);});
   }
   function stop(){
     if(!talking)return;talking=false;clearTimeout(maxT);ui(false);
@@ -656,6 +678,11 @@ function act(d,el){
     case'copy':copyInvite();return;
     case'chat':if($('chatSheet').hidden){closeSheets();$('chatSheet').hidden=false;unread=0;renderChat();var lg=$('chatLog');lg.scrollTop=lg.scrollHeight;}else closeSheets();return;
     case'chatClose':closeSheets();return;
+    case'micClose':closeSheets();return;
+    case'micCopy':
+      var url=location.origin+'/'+(sess?'#'+sess.code:'');
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){showErr('Link gekopieerd. Plak hem in Chrome of Safari.');},function(){showErr('Kopieer deze link: '+url);});else showErr('Kopieer deze link: '+url);
+      return;
     case'quick':var q=quickList()[+d.i];if(q&&send({t:'chat',text:q,quick:true}))closeSheets();return;
     case'quickEdit':openQuickEdit(quickList());return;
     case'quickReset':openQuickEdit(QUICK_DEFAULT);return;
