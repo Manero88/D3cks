@@ -64,9 +64,10 @@ function onMsg(m){
   if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);}
   else if(m.t==='lobby'){lob=m;v=null;show('lobby');renderLobby();}
   else if(m.t==='state'){
-    var fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase==='swap'),pre={pile:$('pileBox').innerHTML,burned:fresh||!v?0:v.burned},wasMine=!!(v&&v.myMove);
+    var fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase!=='over'),pre={pile:$('pileBox').innerHTML,burned:fresh||!v?0:v.burned},wasMine=!!(v&&v.myMove);
     var pv=fresh?null:v;v=m.v;busy=false;show('game');
-    if(fresh){sel=null;picker=null;if(motion){$('app').classList.add('dealing');setTimeout(function(){$('app').classList.remove('dealing');},900);}}
+    if(fresh){sel=null;picker=null;cutStep=1;cutK=null;}
+    if(motion&&m.v.phase==='swap'&&(fresh||(pv&&pv.phase==='cut'))){$('app').classList.add('dealing');setTimeout(function(){$('app').classList.remove('dealing');},900);}
     render();runFx(pre,m.fx||[]);announce(pv,v,sfx(m.fx||[],wasMine));
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
@@ -89,17 +90,20 @@ function renderLobby(){
   var h='';
   lob.players.forEach(function(p){
     if(p.id===lob.hostId)hostName=p.name;
-    var tags=[];if(p.id===lob.you)tags.push('jij');if(p.id===lob.hostId)tags.push('host');if(p.bot)tags.push('bot');if(!p.connected)tags.push('verbinding kwijt');
-    h+='<li data-seat="'+lob.players.indexOf(p)+'"'+(p.connected?'':' class="off"')+'><span class="grow">'+esc(p.name)+'</span><span class="tag">'+tags.join(' · ')+'</span>'+
+    var idx=lob.players.indexOf(p),tags=[];if(p.id===lob.you)tags.push('jij');if(p.id===lob.hostId)tags.push('host');if(p.bot)tags.push('bot');if(!p.connected)tags.push('verbinding kwijt');
+    h+='<li data-seat="'+idx+'"'+(p.connected?'':' class="off"')+'><span class="seatno">'+(idx+1)+'</span><span class="grow">'+esc(p.name)+'</span><span class="tag">'+tags.join(' · ')+'</span>'+
+      (p.id!==lob.you?'<button type="button" class="btn small" data-act="swapSeat" data-id="'+p.id+'" aria-label="Van plek wisselen met '+esc(p.name)+'">Wissel</button>':'')+
       (host&&p.id!==lob.you&&(p.bot||!p.connected)?'<button type="button" class="btn small" data-act="remove" data-id="'+p.id+'" aria-label="'+esc(p.name)+' weghalen">Weghalen</button>':'')+'</li>';
   });
   $('plist').innerHTML=h;
   var c='';
   if(host){
     c+='<div class="actions"><button type="button" class="btn" data-act="addBot"'+(n>=lob.max?' disabled':'')+'>Bot toevoegen</button>'+
+      '<button type="button" class="btn" data-act="shuffleSeats"'+(n<2?' disabled':'')+'>Plekken husselen</button>'+
       '<button type="button" class="btn main" data-act="start"'+(n<lob.min?' disabled':'')+'>Start het spel</button></div>';
     c+='<p class="sub">'+(n<lob.min?'Je hebt minimaal '+lob.min+' spelers nodig. Deel de code of voeg bots toe.':'Iedereen binnen? Dan kun je starten. Meedoen kan daarna niet meer.')+'</p>';
   }else c='<p class="waiting">Wachten tot '+esc(hostName)+' het spel start<i>.</i><i>.</i><i>.</i></p><p class="sub">Lees ondertussen de regels en tips door.</p>';
+  c='<p class="sub">De volgorde hierboven is de volgorde aan tafel. Met Wissel ruil je van plek.</p>'+c;
   $('lobCtl').innerHTML=c;
   applyTalking();
 }
@@ -174,8 +178,15 @@ function render(){
   $('deckBox').innerHTML=v.deck?back(v.deckD,'',' style="box-shadow:'+thick(v.deck,10,14)+'"'):ghost();
   $('deckCap').innerHTML='Deck <b>'+v.deck+'</b>';
 
-  var now,sub='',acts='';
-  if(v.phase==='swap'){
+  $('game').setAttribute('data-phase',v.phase);
+  var now,sub='',acts='',extra='';
+  if(v.phase==='draw'||v.phase==='cut'){
+    var sw=v.start===you?'Jij':esc(v.players[v.start].name);
+    if(v.phase==='draw'){now='Wie begint?';sub='Iedereen trekt een kaart. De hoogste kaart begint en coupeert het deck.';}
+    else if(v.start===you){now='Jij mag couperen';sub=cutStep===2?'Welke stapel komt bovenop?':'Kies op welke hoogte je het deck snijdt.';extra=cutUI();}
+    else{now=sw+' coupeert het deck…';sub=sw+' had de hoogste kaart en begint straks.';}
+    extra=drawBoard()+extra;
+  }else if(v.phase==='swap'){
     if(me.ready){
       var wait=v.players.filter(function(p){return!p.ready;}).map(function(p){return esc(p.name);});
       now='Je bent klaar.';sub=wait.length?'Wachten op '+wait.join(', ')+'.':'';
@@ -186,7 +197,7 @@ function render(){
     }
   }else if(v.phase==='over'){
     now=v.winner===you?'Jij wint dit potje.':v.winner===null?'Niemand wint dit potje.':esc(v.players[v.winner].name)+' wint dit potje.';
-    if(v.host===you||v.host<0||v.players[v.host].away){sub='De winnaar begint het volgende potje.';acts='<button type="button" class="btn main" data-act="again">Nog een potje</button>';}
+    if(v.host===you||v.host<0||v.players[v.host].away){sub='Volgend potje trekt iedereen weer een kaart.';acts='<button type="button" class="btn main" data-act="again">Nog een potje</button>';}
     else sub='Wachten tot '+esc(v.players[v.host].name)+' een nieuw potje start.';
   }else if(myTurn){
     if(picker){now='Kies de waarde van je '+(picker.card.k==='joker'?'joker':'scorekaart')+'.';sub=req();}
@@ -196,7 +207,7 @@ function render(){
   }else{now=esc(v.players[v.turn].name)+' is aan de beurt.';sub=req();}
   var lg='';
   v.log.slice(-5).reverse().forEach(function(l){lg+='<li class="'+l.k+'">'+esc(l.t)+'</li>';});
-  $('info').innerHTML='<p class="now">'+now+'</p>'+(sub?'<p class="sub">'+sub+'</p>':'')+(acts?'<div class="actions">'+acts+'</div>':'')+'<ol class="log" aria-live="polite">'+lg+'</ol>';
+  $('info').innerHTML='<p class="now">'+now+'</p>'+(sub?'<p class="sub">'+sub+'</p>':'')+(acts?'<div class="actions">'+acts+'</div>':'')+extra+'<ol class="log" aria-live="polite">'+lg+'</ol>';
 
   var groups={},keys=[];
   v.hand.forEach(function(c){var key=c.k==='n'?c.v:c.k;if(!groups[key]){groups[key]=[];keys.push(key);}groups[key].push(c);});
@@ -209,7 +220,7 @@ function render(){
     var stl=fanned?' style="--r:'+((idx-mid)*4).toFixed(1)+'deg;--y:'+(Math.abs(idx-mid)*Math.abs(idx-mid)*1.5).toFixed(1)+'px"':'';
     hh+='<button type="button" class="cardbtn '+cls+'" data-act="hand" data-id="'+c.id+'" data-ids=",'+cs.map(function(x){return x.id;}).join(',')+',"'+stl+(dis?' disabled':'')+' aria-label="'+nm(c)+(cs.length>1?', '+cs.length+' stuks':'')+'">'+(cs.length>1?'<span class="badge">×'+cs.length+'</span>':'')+face(c)+'</button>';
   });
-  if(!v.hand.length)hh='<span class="sub">'+(me.out?'Je ligt uit het spel.':'Je hand is leeg.')+'</span>';
+  if(!v.hand.length)hh='<span class="sub">'+(me.out?'Je ligt uit het spel.':v.phase==='draw'||v.phase==='cut'?'Er wordt zo gedeeld.':'Je hand is leeg.')+'</span>';
   var pk='';
   if(picker){
     pk='<div class="picker"><p>Welke waarde krijgt je '+(picker.card.k==='joker'?'joker':'scorekaart')+'?</p><div class="vals">';
@@ -223,14 +234,62 @@ function render(){
   applyTalking();
 }
 
+/* ---------- trekken en couperen ---------- */
+var cutK=null,cutStep=1;
+function drawBoard(){
+  var rs=v.draws||[],anim=v.phase==='draw',h='<div class="drawboard">',last=0;
+  rs.forEach(function(round,ri){
+    var per={},order=[];round.forEach(function(r){if(!per[r.pi]){per[r.pi]=[];order.push(r.pi);}per[r.pi].push(r);});
+    h+='<div class="drow">'+(ri?'<span class="dlab">Gelijk, opnieuw:</span>':'');
+    order.forEach(function(pi,j){
+      var list=per[pi],fin=list[list.length-1],win=ri===rs.length-1&&pi===v.start,d=ri*.9+j*.15;last=Math.max(last,d);
+      h+='<div class="dcell'+(win?' win':'')+'">'+face(fin.c,{cls:anim?'revealed':'',attr:' style="--rd:'+d.toFixed(2)+'s"'})+
+        '<span class="dname">'+(pi===v.you?'Jij':esc(v.players[pi].name))+'</span>'+
+        (list.length>1?'<span class="dnote">nar, opnieuw</span>':'')+
+        (win?'<span class="pill'+(anim?' revealed':'')+'" style="--rd:'+(last+.5).toFixed(2)+'s">begint</span>':'')+'</div>';
+    });
+    h+='</div>';
+  });
+  return h+'</div>';
+}
+function cutInfo(n){return cutK+' kaarten onder de snede, '+(n-cutK)+' erboven.';}
+function cutUI(){
+  var n=v.deck,mn=v.cutMin||15;if(cutK===null||cutK<mn||cutK>n-mn)cutK=Math.round(n/2);
+  if(cutStep===1)return '<div class="cutui"><div class="cutrow"><div class="cstack tall"><span class="cmark" id="cutMark" style="bottom:'+(cutK/n*100).toFixed(1)+'%"></span></div>'+
+    '<div class="cutctl"><label class="field" for="cutRange">Hoogte van de snede<input type="range" id="cutRange" min="'+mn+'" max="'+(n-mn)+'" value="'+cutK+'"></label>'+
+    '<p class="sub" id="cutInfo">'+cutInfo(n)+'</p><button type="button" class="btn main" data-act="cutHere">Hier snijden</button></div></div></div>';
+  var up=n-cutK;
+  return '<div class="cutui"><div class="cutpick">'+
+    '<button type="button" class="cpile" data-act="cutPick" data-lower="0"><span class="cstack" style="height:'+Math.max(16,up/n*150).toFixed(0)+'px"></span><span>Bovenste deel<br><b>'+up+' kaarten</b></span></button>'+
+    '<button type="button" class="cpile" data-act="cutPick" data-lower="1"><span class="cstack" style="height:'+Math.max(16,cutK/n*150).toFixed(0)+'px"></span><span>Onderste deel<br><b>'+cutK+' kaarten</b></span></button>'+
+    '</div><p class="sub">Tik de stapel aan die bovenop komt.</p><div><button type="button" class="btn small" data-act="cutBack">Terug</button></div></div>';
+}
+document.addEventListener('input',function(e){
+  if(e.target.id!=='cutRange'||!v)return;cutK=+e.target.value;
+  var mk=$('cutMark');if(mk)mk.style.bottom=(cutK/v.deck*100).toFixed(1)+'%';var ci=$('cutInfo');if(ci)ci.textContent=cutInfo(v.deck);
+});
+// Animatie van het couperen op het deck: bovenste deel schuift opzij, de gekozen stapel komt bovenop.
+function cutFx(dr,lower){
+  if(!dr||!document.body.animate)return;
+  var mk=function(z){var d=document.createElement('div');d.className='cuthalf';d.style.cssText='left:'+dr.left+'px;top:'+dr.top+'px;width:'+dr.width+'px;height:'+dr.height+'px;z-index:'+(46+z)+';--cw:'+dr.width+'px';d.innerHTML=back(v.deckD||1);$('fx').appendChild(d);return d;};
+  var A=mk(2),B=mk(1),dx=dr.width*1.15,o={duration:950,easing:'ease-in-out',fill:'both'};
+  var a=A.animate(lower?[{transform:'translate(0,0)',zIndex:48},{transform:'translate('+dx+'px,-8px)',zIndex:48,offset:.35},{transform:'translate('+dx+'px,0)',zIndex:47,offset:.5},{transform:'translate(0,0)',zIndex:47}]
+                       :[{transform:'translate(0,0)'},{transform:'translate('+dx+'px,-8px)',offset:.35},{transform:'translate('+dx+'px,-8px)',offset:.55},{transform:'translate(0,0)'}],o);
+  B.animate(lower?[{transform:'translate(0,0)',zIndex:47},{transform:'translate(0,0)',zIndex:47,offset:.45},{transform:'translate('+dx+'px,-14px)',zIndex:49,offset:.7},{transform:'translate(0,0)',zIndex:49}]
+                 :[{transform:'translate(0,0)'},{transform:'translate(0,0)'}],o);
+  a.onfinish=function(){A.remove();B.remove();};
+  setTimeout(function(){toast('Gecoupeerd',dr);},300);
+}
+
 /* ---------- grote meldingen ---------- */
 function cardsLeft(p,vv){return(vv||v).deck>0?99:p.n+p.open.length+p.blind.length;}
 function lastOne(p){return v.phase==='play'&&!p.out&&cardsLeft(p)===1;}
 var bannerQ=[],bannerBusy=false;
 // Vergelijkt het vorige en nieuwe spelbeeld en zet meldingen klaar voor na de animaties.
 function announce(pv,nv,delay){
-  if(!pv||nv.phase!=='play'&&nv.phase!=='over')return;
+  if(!pv)return;
   var q=[];
+  if(pv.phase==='draw'&&nv.phase==='cut'){var mine=nv.start===nv.you,wn=nv.players[nv.start].name;q.push({big:mine?'Jij begint!':wn+' begint!',small:'Hoogste kaart. '+(mine?'Jij coupeert':wn+' coupeert')+' het deck.'});}
   if(!pv.endgame&&nv.endgame)q.push({big:'Endgame!',small:'Het deck is leeg. Speel je hand leeg, dan je tafelkaarten.',hot:true});
   nv.players.forEach(function(p,i){
     var o=pv.players[i];if(!o||p.out||nv.phase!=='play')return;
@@ -433,6 +492,7 @@ function runFx(pre,evs){
         fly(c,null,deckR,to,{delay:t+i*90,dur:340,flip:mine,backOnly:!mine,cw:cw,s:Math.max(.5,deckR.width/to.width),rot:.01,done:function(){if(solo)el.style.visibility='';}});
       });
       t+=340+90*(ev.cards.length-1);
+    }else if(ev.t==='cut'){(function(at){setTimeout(function(){cutFx(deckR,ev.lower);},at);})(t);t+=1000;
     }else if(ev.t==='dir'){setTimeout(function(){toast('↻ Richting om',pileR);},Math.max(0,t-120));}
     else if(ev.t==='seven'){setTimeout(function(){toast('Onder de 7',pileR);},Math.max(0,t-120));}
     else if(ev.t==='skip'){setTimeout(function(){toast('Overgeslagen',pileR);},Math.max(0,t-120));}
@@ -481,6 +541,7 @@ var Snd=(function(){
     fanfare:function(c,t){[392,523,659].forEach(function(f,i){tone(c,t+i*.1,{type:'triangle',f:f,dur:i===2?.4:.15,g:.18});});},
     pttOn:function(c,t){tone(c,t,{f:660,f2:990,dur:.07,g:.08});},
     pttOff:function(c,t){tone(c,t,{f:990,f2:660,dur:.07,g:.06});},
+    snip:function(c,t){noise(c,t,{type:'highpass',f:3500,dur:.05,g:.25});noise(c,t+.07,{type:'highpass',f:4200,dur:.04,g:.2});},
     chat:function(c,t){tone(c,t,{f:880,f2:1320,dur:.12,g:.1});},
     turn:function(c,t){tone(c,t,{f:1047,dur:.35,g:.15});tone(c,t+.08,{f:1568,dur:.3,g:.08});}
   };
@@ -504,6 +565,7 @@ function sfx(evs,wasMine){
     }else if(ev.t==='burn'){Snd.play('burn',t+30);Snd.play('bin',t+1550);t+=1750;}
     else if(ev.t==='pick'){Snd.play('stretch',t+30);Snd.play('pick',t+490);Snd.play('scrape',t+590);Snd.play('snap',t+700);t+=1200;}
     else if(ev.t==='draw'){ev.cards.forEach(function(c,i){Snd.play('draw',t+i*90+250);});t+=340+90*(ev.cards.length-1);}
+    else if(ev.t==='cut'){Snd.play('snip',t+350);Snd.play('card',t+700);t+=1000;}
     else if(ev.t==='win'){Snd.play(ev.pi===v.you?'win':'end',t);}
   });
   if(v.myMove&&!wasMine)Snd.play('turn',t+150);
@@ -678,6 +740,11 @@ function act(d,el){
     case'copy':copyInvite();return;
     case'chat':if($('chatSheet').hidden){closeSheets();$('chatSheet').hidden=false;unread=0;renderChat();var lg=$('chatLog');lg.scrollTop=lg.scrollHeight;}else closeSheets();return;
     case'chatClose':closeSheets();return;
+    case'swapSeat':send({t:'swapSeat',id:d.id});return;
+    case'shuffleSeats':send({t:'shuffleSeats'});return;
+    case'cutHere':cutStep=2;break;
+    case'cutBack':cutStep=1;break;
+    case'cutPick':if(send({t:'cut',k:cutK,lower:d.lower==='1'})){cutStep=1;cutK=null;}break;
     case'micClose':closeSheets();return;
     case'micCopy':
       var url=location.origin+'/'+(sess?'#'+sess.code:'');

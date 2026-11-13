@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 3000;
 const BOT_DELAY = +process.env.BOT_DELAY || 1000;      // denktijd van een bot (ms)
 const AWAY_DELAY = +process.env.AWAY_DELAY || 15000;   // zo lang wachten we op een speler zonder verbinding
 const FX_WAIT = process.env.FX_WAIT === '0' ? 0 : 1;        // bots wachten tot animaties klaar zijn (0 = uit, voor tests)
+const DRAW_SHOW = +process.env.DRAW_SHOW || 2600;          // zo lang blijven de getrokken kaarten in beeld
 const ROOM_TTL = +process.env.ROOM_TTL || 10 * 60000;  // lege kamer opruimen na 10 minuten
 const MAX_PLAYERS = 8, MIN_PLAYERS = 3;
 const BOT_NAMES = ['Noor', 'Sem', 'Lotte', 'Daan', 'Fenna', 'Bram', 'Jip'];
@@ -91,6 +92,7 @@ function view(room, pi) {
   return {
     code: room.code, phase: g.phase, you: pi, host: room.players.findIndex(p => p.id === room.hostId),
     deck: g.deck.length, deckD: g.deck.length ? g.deck[g.deck.length - 1].d : 0,
+    draws: g.draws, start: g.start, cutMin: E.CUT_MIN,
     pile: g.pile.slice(-5), pileN: g.pile.length, top: E.topVal(g), burned: g.burned,
     dir: g.dir, turn: g.turn, sevenBy: g.sevenBy, endgame: g.endgame, winner: g.winner,
     log: g.log.slice(-6),
@@ -111,7 +113,7 @@ function fxFor(fx, pi) {
 }
 function fxDuration(fx) {
   let t = 0;
-  fx.forEach(ev => { t += ev.t === 'play' ? (ev.c.k !== 'n' ? 1350 : 400) + (ev.junk ? 1700 : 0) + (ev.as === 14 ? 750 : ev.as === 2 || ev.as === 7 || ev.as === 8 ? 300 : 0) : ev.t === 'open' ? 400 : ev.t === 'flipfail' ? 920 : ev.t === 'burn' ? 1750 : ev.t === 'endgame' ? 1400 : ev.t === 'pick' ? 1200 : ev.t === 'draw' ? 340 : 0; });
+  fx.forEach(ev => { t += ev.t === 'play' ? (ev.c.k !== 'n' ? 1350 : 400) + (ev.junk ? 1700 : 0) + (ev.as === 14 ? 750 : ev.as === 2 || ev.as === 7 || ev.as === 8 ? 300 : 0) : ev.t === 'open' ? 400 : ev.t === 'flipfail' ? 920 : ev.t === 'burn' ? 1750 : ev.t === 'endgame' ? 1400 : ev.t === 'cut' ? 1000 : ev.t === 'pick' ? 1200 : ev.t === 'draw' ? 340 : 0; });
   return t;
 }
 function broadcastState(room) {
@@ -123,9 +125,10 @@ function broadcastState(room) {
 }
 
 /* ---------- spelverloop ---------- */
-function startGame(room, startIdx) {
+// Elk potje: eerst trekt iedereen een kaart (wie begint), dan coupeert die speler, dan wordt er gedeeld.
+function startGame(room) {
   const specs = room.players.map(p => ({ name: p.name, bot: p.bot }));
-  room.g = E.newGame(crypto.randomInt(2147483647), specs, startIdx || 0);
+  room.g = E.newGame(crypto.randomInt(2147483647), specs);
   room.players.forEach(p => { p.ready = p.bot || p.left; });
   broadcastState(room);
   schedule(room, 0);
@@ -143,6 +146,18 @@ function schedule(room, fxDur) {
   clearTimeout(room.timer); room.timer = null;
   const g = room.g; if (!g) return;
   if (g.phase === 'over') { if (g.winner !== null) room.lastWinner = g.winner; return; }
+  if (g.phase === 'draw') {
+    // even tijd om de getrokken kaarten te laten zien
+    room.timer = setTimeout(() => { if (room.g === g && E.toCut(g)) { broadcastState(room); schedule(room, 0); } }, DRAW_SHOW + 900 * (g.draws.length - 1));
+    return;
+  }
+  if (g.phase === 'cut') {
+    const cutter = room.players[g.start];
+    const auto = cutter.bot || cutter.left;
+    if (!auto && cutter.connected) return;
+    room.timer = setTimeout(() => { if (room.g === g && g.phase === 'cut' && E.botCut(g)) { schedule(room, broadcastState(room)); } }, auto ? 1400 : AWAY_DELAY);
+    return;
+  }
   if (g.phase === 'swap') {
     if (room.players.some(p => !p.ready && !p.connected)) room.timer = setTimeout(() => {
       room.players.forEach(p => { if (!p.connected) p.ready = true; });
@@ -196,7 +211,7 @@ const handlers = {
     addHuman(room, m.name, ws);
     const n = Math.max(2, Math.min(MAX_PLAYERS - 1, m.bots | 0));
     for (let i = 0; i < n; i++) addBot(room);
-    startGame(room, 0);
+    startGame(room);
   },
   join(ws, m) {
     if (ws.room) return;
@@ -220,6 +235,26 @@ const handlers = {
     broadcastState(room);
     schedule(room, 0);
   },
+  cut(ws, m) {
+    const room = ws.room; if (!room || !room.g || room.g.phase !== 'cut') return;
+    const pi = seatOf(room, ws.pid);
+    if (pi !== room.g.start) return fail(ws, 'Alleen de speler met de hoogste kaart mag couperen.');
+    if (E.cutDeck(room.g, pi, +m.k, !!m.lower)) schedule(room, broadcastState(room));
+  },
+  // Plekken aan tafel (alleen in de lobby): de host husselt, iedereen kan zelf wisselen.
+  shuffleSeats(ws) {
+    const room = ws.room; if (!room || room.g || room.hostId !== ws.pid) return;
+    const a = room.players;
+    for (let i = a.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+    broadcastLobby(room);
+  },
+  swapSeat(ws, m) {
+    const room = ws.room; if (!room || room.g) return;
+    const i = seatOf(room, ws.pid), j = room.players.findIndex(p => p.id === m.id);
+    if (i < 0 || j < 0 || i === j) return;
+    [room.players[i], room.players[j]] = [room.players[j], room.players[i]];
+    broadcastLobby(room);
+  },
   addBot(ws) {
     const room = ws.room;
     if (!room || room.g || room.hostId !== ws.pid) return;
@@ -237,14 +272,14 @@ const handlers = {
     const room = ws.room;
     if (!room || room.g || room.hostId !== ws.pid) return;
     if (room.players.length < MIN_PLAYERS) return fail(ws, 'Je hebt minimaal 3 spelers nodig. Voeg een bot toe of wacht op meer spelers.');
-    startGame(room, 0);
+    startGame(room);
   },
   again(ws) {
     const room = ws.room;
     if (!room || !room.g || room.g.phase !== 'over') return;
     const host = room.players.find(p => p.id === room.hostId);
     if (room.hostId !== ws.pid && host && host.connected && !host.left) return;
-    startGame(room, room.lastWinner || 0);
+    startGame(room);
   },
   swap(ws, m) {
     const room = ws.room; if (!room || !room.g) return;

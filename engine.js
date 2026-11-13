@@ -9,9 +9,12 @@ function say(g,t,k){g.log.push({t:t,k:k||'',n:++g.n});if(g.log.length>60)g.log.s
 function fxp(g,o){g.fx.push(o);if(g.fx.length>40)g.fx.shift();}
 function strength(c){return c.k!=='n'?100:c.v===10?90:c.v===2?80:c.v;}
 function botSwap(p){const all=p.hand.concat(p.open).sort(function(a,b){return strength(b)-strength(a);});p.open=all.slice(0,3);p.hand=all.slice(3);}
+// newGame(seed, spelers)          -> begint met trekken (wie begint) en couperen, daarna delen.
+// newGame(seed, spelers, startIdx) -> meteen delen met een vaste startspeler (gebruikt in tests).
 function newGame(seed,specs,startIdx){
   specs=specs&&specs.length?specs:[{name:'Jij',bot:false},{name:'Noor',bot:true},{name:'Sem',bot:true}];
-  const g={rs:seed|0,deck:[],pile:[],burned:0,dir:1,turn:startIdx||0,start:startIdx||0,phase:'swap',sevenBy:null,endgame:false,dqDone:false,winner:null,pendingBlind:null,log:[],n:0,fx:[],
+  const quick=typeof startIdx==='number';
+  const g={rs:seed|0,deck:[],pile:[],burned:0,dir:1,turn:startIdx||0,start:startIdx||0,phase:'swap',draws:[],sevenBy:null,endgame:false,dqDone:false,winner:null,pendingBlind:null,log:[],n:0,fx:[],
     players:specs.map(function(p){return{name:p.name,bot:!!p.bot,hand:[],open:[],blind:[],drew:false,out:false};})};
   let id=0;
   for(let d=1;d<=3;d++){
@@ -19,10 +22,45 @@ function newGame(seed,specs,startIdx){
     g.deck.push({id:id++,v:0,k:'joker',d:d},{id:id++,v:0,k:'joker',d:d},{id:id++,v:0,k:'score',d:d});
   }
   shuffle(g,g.deck);
-  ['blind','open','hand'].forEach(function(z){g.players.forEach(function(p){for(let i=0;i<3;i++)p[z].push(g.deck.pop());});});
-  g.players.forEach(function(p){if(p.bot)botSwap(p);});
+  if(quick)deal(g);else drawForStart(g);
   return g;
 }
+function deal(g){
+  ['blind','open','hand'].forEach(function(z){g.players.forEach(function(p){for(let i=0;i<3;i++)p[z].push(g.deck.pop());});});
+  g.players.forEach(function(p){if(p.bot)botSwap(p);});
+  g.phase='swap';
+}
+// Iedereen trekt een kaart; de hoogste begint en coupeert. Joker/scorekaart: die speler trekt opnieuw.
+// Gelijk om de hoogste kaart: alleen die spelers trekken opnieuw. Alle getrokken kaarten gaan terug in het deck.
+function drawForStart(g){
+  let cont=g.players.map(function(p,i){return i;});const rounds=[],used=[];
+  for(;;){
+    const round=[];
+    cont.forEach(function(pi){let c;for(;;){c=g.deck.pop();used.push(c);if(c.k==='n')break;round.push({pi:pi,c:c,re:true});}round.push({pi:pi,c:c});});
+    rounds.push(round);
+    const vals=round.filter(function(r){return!r.re;}),max=Math.max.apply(null,vals.map(function(r){return r.c.v;}));
+    const top=vals.filter(function(r){return r.c.v===max;}).map(function(r){return r.pi;});
+    if(top.length===1||rounds.length>=12){g.start=top[0];break;}
+    say(g,'Gelijk: '+top.map(function(i){return g.players[i].name;}).join(' en ')+' trekken opnieuw.');
+    cont=top;
+  }
+  used.forEach(function(c){g.deck.push(c);});shuffle(g,g.deck);
+  g.draws=rounds;g.turn=g.start;g.phase='draw';
+  const win=rounds[rounds.length-1].filter(function(r){return!r.re&&r.pi===g.start;})[0];
+  say(g,g.players[g.start].name+' trekt '+word(win.c.v)+', begint en coupeert het deck.');
+}
+const CUT_MIN=15;
+function toCut(g){if(g.phase!=='draw')return false;g.phase='cut';return true;}
+// k = aantal kaarten in het onderste deel. lowerOnTop: het onderste deel komt bovenop.
+function cutDeck(g,pi,k,lowerOnTop){
+  if(g.phase!=='cut'||pi!==g.start)return false;
+  const n=g.deck.length;k=Math.max(CUT_MIN,Math.min(n-CUT_MIN,Math.round(+k||n/2)));
+  if(lowerOnTop)g.deck=g.deck.slice(k).concat(g.deck.slice(0,k));
+  fxp(g,{t:'cut',pi:pi,k:k,n:n,lower:!!lowerOnTop});
+  say(g,g.players[pi].name+' coupeert het deck: '+(lowerOnTop?'het onderste deel ('+k+') komt bovenop.':'het bovenste deel ('+(n-k)+') blijft bovenop.'));
+  deal(g);return true;
+}
+function botCut(g){const n=g.deck.length;return cutDeck(g,g.start,CUT_MIN+Math.floor(rnd(g)*(n-2*CUT_MIN)),rnd(g)<.5);}
 function swap(g,pi,handId,openId){
   if(g.phase!=='swap')return false;const p=g.players[pi];
   const hi=p.hand.findIndex(function(c){return c.id===handId;}),oi=p.open.findIndex(function(c){return c.id===openId;});
@@ -204,6 +242,6 @@ function botTurn(g){
   if(zoneOf(p)==='blind'){if(flipBlind(g,pi,Math.floor(rnd(g)*p.blind.length))==='wild')resolveBlind(g,botWild(g));return;}
   const m=botChoose(g,pi);if(!m)takePile(g,pi);else playCard(g,pi,m.card.id,m.as);
 }
-return{cardsLeft:cardsLeft,lab:lab,word:word,newGame:newGame,swap:swap,begin:begin,topVal:topVal,runLen:runLen,canValue:canValue,wildValues:wildValues,zoneOf:zoneOf,options:options,playCard:playCard,takePile:takePile,flipBlind:flipBlind,resolveBlind:resolveBlind,botTurn:botTurn,jokerInPile:jokerInPile};
+return{CUT_MIN:CUT_MIN,toCut:toCut,cutDeck:cutDeck,botCut:botCut,cardsLeft:cardsLeft,lab:lab,word:word,newGame:newGame,swap:swap,begin:begin,topVal:topVal,runLen:runLen,canValue:canValue,wildValues:wildValues,zoneOf:zoneOf,options:options,playCard:playCard,takePile:takePile,flipBlind:flipBlind,resolveBlind:resolveBlind,botTurn:botTurn,jokerInPile:jokerInPile};
 })();
 if(typeof module!=='undefined')module.exports=E;

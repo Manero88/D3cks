@@ -181,6 +181,25 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .sheet{position:fixed;z-index:59;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 86px);width:min(380px,calc(100vw - 32px));max-height:min(70vh,560px);
   display:flex;flex-direction:column;gap:10px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 20px 40px var(--shadow);animation:pop .16s ease-out}
 .sheet-h{display:flex;align-items:center;gap:8px} .sheet-h strong{font:800 20px/1 var(--font-d);flex:1}
+.drawboard{display:flex;flex-direction:column;gap:8px}
+.drow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.dlab{width:100%;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.dcell{display:flex;flex-direction:column;align-items:center;gap:4px;--cw:50px;padding:6px;border-radius:12px}
+.dcell.win{background:color-mix(in srgb,var(--ok) 18%,transparent);box-shadow:0 0 0 2px var(--ok)}
+.dname{font:700 13px/1.1 var(--font-d);max-width:70px;text-align:center;overflow-wrap:anywhere}
+.dnote{font-size:10.5px;color:var(--muted)}
+.cutui{display:flex;flex-direction:column;gap:10px;background:var(--panel);border-radius:14px;padding:12px}
+.cutrow{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.cutctl{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.cutctl input[type=range]{min-height:36px;padding:0;accent-color:var(--hot)}
+.cstack{display:block;position:relative;width:70px;border-radius:6px;background:repeating-linear-gradient(to top,var(--paper) 0 2px,var(--edge2) 2px 3px);box-shadow:0 0 0 1px var(--line),0 8px 14px var(--shadow)}
+.cstack.tall{height:160px}
+.cmark{position:absolute;left:-10px;right:-10px;height:4px;border-radius:2px;background:var(--hot);transform:translateY(50%);box-shadow:0 0 0 2px color-mix(in srgb,var(--hot) 30%,transparent)}
+.cutpick{display:flex;gap:12px;flex-wrap:wrap}
+.cpile{flex:1 1 120px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;min-height:200px;padding:12px;border-radius:14px;border:2px solid var(--line);background:var(--table);color:var(--ink);font:600 14px/1.3 var(--font-b);cursor:pointer;text-align:center}
+.cpile:hover,.cpile:focus-visible{border-color:var(--ok);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 30%,transparent)}
+.cuthalf{position:fixed;pointer-events:none}
+.seatno{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--table);font:800 13px/1 var(--font-d);flex:none}
 .michelp{display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.4}
 .michelp p{margin:0} .michelp ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .chatlog{list-style:none;margin:0;padding:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px;max-height:240px}
@@ -302,6 +321,8 @@ details ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;g
   /* volgorde op de telefoon: tegenstanders, tafel, jouw kaarten, dan pas de tekst */
   #game{gap:10px} #game .mid{display:contents}
   #game .tablewrap{order:4} #me{order:5} #game .info{order:6} #game details{order:7}
+  /* tijdens trekken en couperen staat de tekst (en het couperen) boven je lege plek */
+  #game[data-phase="draw"] .info,#game[data-phase="cut"] .info{order:5} #game[data-phase="draw"] #me,#game[data-phase="cut"] #me{order:6}
   .bar .btn{min-height:34px;padding:5px 10px;font-size:13px}
   #chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} #chips::-webkit-scrollbar{display:none}
   .opps{grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px}
@@ -439,6 +460,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
       <div class="col">
         <h2>Regels</h2>
         <ul class="rules">
+        <li>Voor elk potje trekt iedereen een kaart. De hoogste kaart begint en coupeert het deck.</li>
         <li>Speel één kaart die gelijk of hoger is dan de bovenste. Kun je spelen, dan moet je. Kun je niet, dan pak je de stapel.</li>
         <li><b>2</b> mag overal op, draait de richting om en geeft de volgende een vrije zet.</li>
         <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
@@ -481,6 +503,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
     <details>
       <summary>Regels in het kort</summary>
       <ul>
+        <li>Voor elk potje trekt iedereen een kaart. De hoogste kaart begint en coupeert het deck.</li>
         <li>Speel één kaart die gelijk of hoger is dan de bovenste. Kun je spelen, dan moet je. Kun je niet, dan pak je de stapel.</li>
         <li><b>2</b> mag overal op, draait de richting om en geeft de volgende een vrije zet.</li>
         <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>

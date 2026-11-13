@@ -1,5 +1,5 @@
 // Speelt een compleet potje via de echte server: host + joiner + bot.
-process.env.PORT = '0'; process.env.BOT_DELAY = '1'; process.env.AWAY_DELAY = '30'; process.env.FX_WAIT = '0';
+process.env.PORT = '0'; process.env.BOT_DELAY = '1'; process.env.AWAY_DELAY = '30'; process.env.FX_WAIT = '0'; process.env.DRAW_SHOW = '5';
 const assert = require('assert');
 const WebSocket = require('ws');
 const { server } = require('../server.js');
@@ -20,6 +20,8 @@ function client(port) {
 }
 function autoplay(c) {
   const v = c.v;
+  if (v.phase === 'draw') return;
+  if (v.phase === 'cut') { if (v.start === v.you) c.send({ t: 'cut', k: 60, lower: true }); return; }
   if (v.phase === 'swap') { if (!v.players[v.you].ready) c.send({ t: 'ready' }); return; }
   if (v.phase !== 'play') return;
   if (v.pending) return c.send({ t: 'pick', as: v.pending.values[0] });
@@ -64,21 +66,31 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   a.send({ t: 'start' }); await wait(() => a.errors.length === 2);            // te weinig spelers
   b.send({ t: 'addBot' }); b.send({ t: 'start' });                             // alleen de host mag dit
   a.send({ t: 'addBot' }); await wait(() => a.lobby.players.length === 3);
-  assert(a.lobby.players[2].bot);
+  // plekken: zelf wisselen en husselen door de host
+  const before = a.lobby.players.map(p => p.id).join();
+  b.send({ t: 'swapSeat', id: a.lobby.players[0].id });
+  await wait(() => a.lobby.players[0].id === b.sess.pid);
+  b.send({ t: 'shuffleSeats' }); await new Promise(r => setTimeout(r, 40)); // niet de host: niets
+  assert.strictEqual(a.lobby.players[0].id, b.sess.pid);
+  for (let i = 0; i < 6 && a.lobby.players.map(p => p.id).join() !== before; i++) { a.send({ t: 'shuffleSeats' }); await new Promise(r => setTimeout(r, 30)); }
+  assert(a.lobby.players.some(p => p.bot));
   a.auto = b.auto = true;
   a.send({ t: 'start' });
   await wait(() => a.v && b.v);
   x.send({ t: 'join', code, name: 'Laat' }); await wait(() => x.errors.length === 2); // spel al begonnen
   // geheimhouding: niemand ziet handen of blinde kaarten van een ander
   a.v.players.forEach(p => assert(!('hand' in p))); a.v.players.forEach(p => p.blind.forEach(d => assert(typeof d === 'number')));
-  assert.strictEqual(a.msgs.find(m => m.t === 'state').v.hand.length, 3); // eerste zicht: 3 handkaarten
+  await wait(() => a.msgs.some(m => m.t === 'state' && m.v.phase !== 'draw' && m.v.phase !== 'cut'));
+  assert.strictEqual(a.msgs.find(m => m.t === 'state' && m.v.phase === 'swap').v.hand.length, 3); // na delen: 3 handkaarten
+  const d0 = a.msgs.find(m => m.t === 'state').v; assert.strictEqual(d0.phase, 'draw'); assert(d0.draws.length >= 1);
   // verbinding kwijt en terugkomen
   await wait(() => a.v.phase === 'play' && a.v.log.length > 2);
   b.ws.close();
-  await wait(() => a.v.players[1].away);
+  const bi = () => a.v.players.findIndex(p => p.name === 'Manero 2');
+  await wait(() => a.v.players[bi()].away);
   const b2 = client(port); await b2.open; b2.auto = true;
   b2.send({ t: 'rejoin', code, pid: b.sess.pid, token: b.sess.token });
-  await wait(() => b2.v && !a.v.players[1].away);
+  await wait(() => b2.v && !a.v.players[bi()].away);
   const bad = client(port); await bad.open; bad.send({ t: 'rejoin', code, pid: b.sess.pid, token: 'fout' }); await wait(() => bad.errors.length === 1);
   await wait(() => a.v.phase === 'over', 60000);
   assert(a.v.winner !== null && b2.v.phase === 'over');
