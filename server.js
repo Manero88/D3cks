@@ -17,7 +17,7 @@ const ROOM_TTL = +process.env.ROOM_TTL || 10 * 60000;  // lege kamer opruimen na
 const MAX_PLAYERS = 8, MIN_PLAYERS = 3;
 const BOT_NAMES = ['Noor', 'Sem', 'Lotte', 'Daan', 'Fenna', 'Bram', 'Jip'];
 const PUB = path.join(__dirname, 'public');
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 
 const server = http.createServer((req, res) => {
   let u;

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs><radialGradient id="bg" cx="50%" cy="28%" r="80%"><stop offset="0" stop-color="#4a6c9e"/><stop offset="1" stop-color="#16243c"/></radialGradient>
+<linearGradient id="c1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3566dc"/><stop offset="1" stop-color="#1d3f9a"/></linearGradient>
+<linearGradient id="c2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9453d"/><stop offset="1" stop-color="#9c2620"/></linearGradient>
+<linearGradient id="c3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c58d1c"/><stop offset="1" stop-color="#8a5d08"/></linearGradient>
+<filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".45"/></filter></defs>
+<rect width="512" height="512" rx="112" fill="url(#bg)"/>
+<g transform="translate(256 270) scale(1) translate(-256 -270)">
+ <g filter="url(#sh)">
+  <g transform="rotate(-17 256 430)"><rect x="166" y="120" width="180" height="252" rx="22" fill="url(#c1)"/><rect x="180" y="134" width="152" height="224" rx="13" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="5"/></g>
+  <g transform="rotate(17 256 430)"><rect x="166" y="120" width="180" height="252" rx="22" fill="url(#c3)"/><rect x="180" y="134" width="152" height="224" rx="13" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="5"/></g>
+  <g><rect x="166" y="112" width="180" height="252" rx="22" fill="url(#c2)"/><rect x="180" y="126" width="152" height="224" rx="13" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="5"/>
+   <text x="256" y="304" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="200" fill="#fff" stroke="#7a1712" stroke-width="2" paint-order="stroke">3</text></g>
+ </g></g></svg>

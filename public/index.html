@@ -6,7 +6,15 @@
 <title>3Decks</title>
 <script>try{var t=localStorage.getItem("d3cks-theme"),m={blauw:"dark",licht:"light",zwart:"zwart",casino:"casino"};if(m[t])document.documentElement.setAttribute("data-theme",m[t]);}catch(e){}</script>
 <meta name="description" content="3Decks: het kaartspel met drie decks. Host een spel, deel de code en speel met 3 tot 8 spelers.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232552c4'/%3E%3Ctext x='16' y='24' font-size='22' font-weight='800' font-family='Arial' text-anchor='middle' fill='white'%3E3%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon-64.png" sizes="64x64" type="image/png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#0e1520">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="D3cks">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
 <style>
@@ -302,7 +310,9 @@ details ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;g
 .field{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 input,select{font:500 17px var(--font-b);color:var(--field-ink);background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;min-height:46px;min-width:0;width:100%}
 select.themesel{width:auto;min-height:38px;font-size:14px;font-weight:700;padding:5px 30px 5px 10px}
-.themerow{display:flex;align-items:center;gap:10px}
+.themerow{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.installhint{margin:0;max-width:60ch}
+.installhint b{color:var(--ink)}
 input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 #name{max-width:320px}
 #code{text-transform:uppercase;letter-spacing:.2em;font:800 22px var(--font-d)}
@@ -351,7 +361,8 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
       </div>
       <div class="herofan" aria-hidden="true"><span class="card back d1" style="--r:-16deg"><span class="bwm">D<b>3</b>CKS</span></span><span class="card back d2" style="--r:0deg"><span class="bwm">D<b>3</b>CKS</span></span><span class="card back d3" style="--r:16deg"><span class="bwm">D<b>3</b>CKS</span></span></div>
     </div>
-    <div class="themerow"><select class="themesel" data-theme-select aria-label="Thema"><option value="auto">Thema: automatisch</option><option value="blauw">Thema: blauw</option><option value="licht">Thema: licht</option><option value="zwart">Thema: zwart</option><option value="casino">Thema: casino</option></select></div>
+    <div class="themerow"><button class="btn" type="button" id="installBtn" data-act="install" hidden>Installeer als app</button><select class="themesel" data-theme-select aria-label="Thema"><option value="auto">Thema: automatisch</option><option value="blauw">Thema: blauw</option><option value="licht">Thema: licht</option><option value="zwart">Thema: zwart</option><option value="casino">Thema: casino</option></select></div>
+    <p class="sub installhint" id="iosHint" hidden>Op je iPhone: tik in Safari op <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan staat D3cks als app op je telefoon.</p>
     <label class="field" for="name">Je naam<input id="name" maxlength="14" autocomplete="nickname" placeholder="Hoe heet je?"></label>
     <p class="err" id="homeErr" role="alert" hidden></p>
     <div class="modes">

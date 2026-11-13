@@ -526,6 +526,7 @@ function act(d,el){
       if((n=name()))send({t:'join',code:code,name:n});return;
     case'solo':if((n=name()))send({t:'solo',name:n,bots:+$('bots').value});return;
     case'copy':copyInvite();return;
+    case'install':if(installEvt){installEvt.prompt();installEvt.userChoice.then(function(){installEvt=null;$('installBtn').hidden=true;},function(){});}return;
     case'addBot':send({t:'addBot'});return;
     case'remove':send({t:'remove',id:d.id});return;
     case'start':send({t:'start'});return;
@@ -573,7 +574,16 @@ function applyTheme(t){
   if(t==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',THEME_ATTR[t]);
   store('d3cks-theme',t==='auto'?null:t);
   [].forEach.call(document.querySelectorAll('[data-theme-select]'),function(s){s.value=t;});
+  // kleur van de statusbalk mee laten gaan met het thema
+  var mt=document.querySelector('meta[name="theme-color"]');
+  if(mt)try{mt.setAttribute('content',getComputedStyle(document.documentElement).getPropertyValue('--table').trim()||'#0e1520');}catch(e){}
 }
+/* ---------- als app installeren ---------- */
+var installEvt=null,standalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('/sw.js').catch(function(){});
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;$('installBtn').hidden=false;});
+window.addEventListener('appinstalled',function(){installEvt=null;$('installBtn').hidden=true;});
+if(!standalone&&/iPhone|iPad|iPod/.test(navigator.userAgent||''))$('iosHint').hidden=false;
 document.addEventListener('change',function(e){if(e.target.matches&&e.target.matches('[data-theme-select]'))applyTheme(e.target.value);});
 applyTheme(load('d3cks-theme')||'auto');
 sndLabel();

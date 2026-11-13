@@ -1,0 +1,17 @@
+{
+  "name": "D3cks",
+  "short_name": "D3cks",
+  "description": "Het kaartspel met drie decks. Speel met 3 tot 8 spelers, online of tegen bots.",
+  "lang": "nl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1520",
+  "theme_color": "#0e1520",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
