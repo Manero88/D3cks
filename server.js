@@ -52,7 +52,7 @@ function cleanName(n, room) {
   return out;
 }
 function makeRoom() {
-  const room = { code: newCode(), players: [], hostId: null, g: null, timer: null, seq: 0, emptySince: null, lastWinner: 0 };
+  const room = { code: newCode(), players: [], hostId: null, g: null, timer: null, seq: 0, emptySince: null, lastWinner: 0, chat: [] };
   rooms.set(room.code, room);
   return room;
 }
@@ -62,6 +62,7 @@ function addHuman(room, name, ws) {
   if (!room.hostId) room.hostId = p.id;
   ws.room = room; ws.pid = p.id;
   send(ws, { t: 'joined', code: room.code, pid: p.id, token: p.token });
+  send(ws, { t: 'chatlog', items: room.chat });
   return p;
 }
 function addBot(room) {
@@ -196,6 +197,7 @@ const handlers = {
     if (p.ws && p.ws !== ws) { p.ws.room = null; try { p.ws.close(); } catch (e) {} }
     p.ws = ws; p.connected = true; ws.room = room; ws.pid = p.id; room.emptySince = null;
     send(ws, { t: 'joined', code: room.code, pid: p.id, token: p.token });
+    send(ws, { t: 'chatlog', items: room.chat });
     if (!room.g) return broadcastLobby(room);
     broadcastState(room);
     schedule(room, 0);
@@ -242,6 +244,20 @@ const handlers = {
   pickup(ws) { move(ws, (g, pi) => E.takePile(g, pi)); },
   blind(ws, m) { move(ws, (g, pi) => E.flipBlind(g, pi, m.i | 0)); },
   pick(ws, m) { move(ws, (g, pi) => g.pendingBlind && g.pendingBlind.pi === pi && E.resolveBlind(g, m.as | 0)); },
+  // Chat: korte berichten naar iedereen in de kamer. Niet bewaard buiten de kamer.
+  chat(ws, m) {
+    const room = ws.room; if (!room) return;
+    const p = room.players.find(q => q.id === ws.pid); if (!p) return;
+    const now = Date.now();
+    ws.chatTimes = (ws.chatTimes || []).filter(t => now - t < 5000);
+    if (ws.chatTimes.length >= 4) return fail(ws, 'Rustig aan, even wachten met chatten.');
+    const text = String(m.text || '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!text) return;
+    ws.chatTimes.push(now);
+    const item = { id: ++room.seq, name: p.name, pid: p.id, seat: room.g ? room.players.indexOf(p) : -1, text, quick: !!m.quick, ts: now };
+    room.chat.push(item); if (room.chat.length > 30) room.chat.shift();
+    room.players.forEach(q => { if (!q.bot) send(q.ws, { t: 'chat', item }); });
+  },
   leave(ws) { drop(ws, true); send(ws, { t: 'left' }); }
 };
 function move(ws, fn) {

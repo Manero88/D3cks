@@ -41,7 +41,14 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   b.send({ t: 'join', code: code.toLowerCase(), name: 'Manero' });
   await wait(() => a.lobby.players.length === 2);
   assert.notStrictEqual(a.lobby.players[0].name, a.lobby.players[1].name);
-  a.send({ t: 'start' }); await wait(() => a.errors.length === 1);            // te weinig spelers
+  // chat: komt bij iedereen aan, wordt opgeschoond, en spam wordt afgeremd
+  a.send({ t: 'chat', text: '  Hoi\n<b>allemaal</b>  ' + 'x'.repeat(200), quick: false });
+  await wait(() => b.msgs.some(m => m.t === 'chat'));
+  const ci = b.msgs.find(m => m.t === 'chat').item;
+  assert.strictEqual(ci.name, 'Manero'); assert(ci.text.length <= 80 && !ci.text.includes('\n'));
+  for (let i = 0; i < 5; i++) a.send({ t: 'chat', text: 'spam ' + i });
+  await wait(() => a.errors.some(e => e.startsWith('Rustig aan')));
+  a.send({ t: 'start' }); await wait(() => a.errors.length === 2);            // te weinig spelers
   b.send({ t: 'addBot' }); b.send({ t: 'start' });                             // alleen de host mag dit
   a.send({ t: 'addBot' }); await wait(() => a.lobby.players.length === 3);
   assert(a.lobby.players[2].bot);

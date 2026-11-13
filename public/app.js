@@ -55,10 +55,10 @@ function showErr(msg){
   el.textContent=msg;el.hidden=false;clearTimeout(errT);errT=setTimeout(function(){el.hidden=true;},5000);
 }
 function show(s){
-  screen=s;['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
+  screen=s;$('chatBtn').hidden=s==='home';if(s==='home')closeSheets();['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
   if(s==='home')$('conn').hidden=true;
 }
-function goHome(){sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
+function goHome(){chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
 function setHash(code){try{history.replaceState(null,'',code?'#'+code:location.pathname+location.search);}catch(e){}}
 function onMsg(m){
   if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);}
@@ -71,6 +71,13 @@ function onMsg(m){
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
   else if(m.t==='left')goHome();
+  else if(m.t==='chatlog'){chatItems=(m.items||[]).slice(-50);renderChat();}
+  else if(m.t==='chat'){
+    chatItems.push(m.item);if(chatItems.length>50)chatItems.shift();
+    var mine=sess&&m.item.pid===sess.pid;
+    if(!mine){Snd.play('chat');if($('chatSheet').hidden){unread++;}}
+    chatBubble(m.item);renderChat();
+  }
 }
 
 /* ---------- lobby ---------- */
@@ -469,6 +476,7 @@ var Snd=(function(){
     snap:function(c,t){tone(c,t,{f:760,f2:140,dur:.4,g:.2});},
     alarm:function(c,t){[0,.22,.44].forEach(function(d){tone(c,t+d,{type:'square',f:880,dur:.1,g:.07});tone(c,t+d+.11,{type:'square',f:660,dur:.1,g:.07});});},
     fanfare:function(c,t){[392,523,659].forEach(function(f,i){tone(c,t+i*.1,{type:'triangle',f:f,dur:i===2?.4:.15,g:.18});});},
+    chat:function(c,t){tone(c,t,{f:880,f2:1320,dur:.12,g:.1});},
     turn:function(c,t){tone(c,t,{f:1047,dur:.35,g:.15});tone(c,t+.08,{f:1568,dur:.3,g:.08});}
   };
   return{
@@ -495,6 +503,41 @@ function sfx(evs,wasMine){
   if(v.myMove&&!wasMine)Snd.play('turn',t+150);
   return t;
 }
+
+/* ---------- chat ----------
+   Snelle berichten stel je vooraf in (bewaard in deze browser); in het spel tik je ze alleen aan. */
+var chatItems=[],unread=0;
+var QUICK_DEFAULT=['Jammer joh','Haha!','Strekken!','Goed gespeeld','Pas op, laatste kaart!','Wie heeft die 10?','Kom op, spelen!','Nog een potje?'];
+function quickList(){try{var l=JSON.parse(load('d3cks-quick')||'null');if(Array.isArray(l)&&l.length)return l.slice(0,8).map(String);}catch(e){}return QUICK_DEFAULT;}
+function closeSheets(){$('chatSheet').hidden=true;$('quickSheet').hidden=true;}
+function renderChat(){
+  var b=$('chatBadge');b.hidden=!unread;b.textContent=unread>9?'9+':String(unread);
+  $('chatBtn').setAttribute('aria-label',unread?'Chat openen, '+unread+' nieuw':'Chat openen');
+  if($('chatSheet').hidden)return;
+  var h='';chatItems.forEach(function(it){h+='<li'+(sess&&it.pid===sess.pid?' class="me"':'')+'><b>'+esc(it.name)+'</b>'+esc(it.text)+'</li>';});
+  var lg=$('chatLog'),atEnd=lg.scrollHeight-lg.scrollTop-lg.clientHeight<30;
+  lg.innerHTML=h||'<li class="empty">Nog geen berichten. Tik hieronder een snel bericht aan.</li>';
+  if(atEnd)lg.scrollTop=lg.scrollHeight;
+  $('quickRow').innerHTML=quickList().map(function(q,i){return'<button type="button" class="qchip" data-act="quick" data-i="'+i+'">'+esc(q)+'</button>';}).join('');
+}
+function openQuickEdit(list){
+  closeSheets();var h='';
+  for(var i=0;i<8;i++)h+='<input maxlength="40" aria-label="Snel bericht '+(i+1)+'" value="'+esc(list[i]||'')+'" placeholder="Snel bericht '+(i+1)+'">';
+  $('quickEdit').innerHTML=h;$('quickSheet').hidden=false;
+  // Op het startscherm is de chatknop er niet; de instellingen wel.
+}
+// Een wolkje bij de speler aan tafel, zodat je ziet wie wat zegt zonder de chat te openen.
+function chatBubble(it){
+  if(screen!=='game'||!v||it.seat<0)return;
+  var el=it.seat===v.you?$('me'):$('opps').querySelector('[data-seat="'+it.seat+'"]');if(!el)return;
+  var r=el.getBoundingClientRect(),d=document.createElement('div');d.className='cbubble';d.textContent=it.text;
+  d.style.left=Math.max(8,Math.min(r.left+12,(window.innerWidth||400)-230))+'px';d.style.top=Math.max(8,r.top-8)+'px';$('fx').appendChild(d);
+  if(!d.animate){setTimeout(function(){d.remove();},3200);return;}
+  var a=d.animate([{transform:'translateY(-80%) scale(.5)',opacity:0},{transform:'translateY(-100%) scale(1.05)',opacity:1,offset:.08},{transform:'translateY(-100%) scale(1)',opacity:1,offset:.85},{transform:'translateY(-120%)',opacity:0}],{duration:3200,easing:'ease-out',fill:'both'});
+  a.onfinish=function(){d.remove();};
+}
+$('chatForm').addEventListener('submit',function(e){e.preventDefault();var i=$('chatInput'),t=i.value.trim();if(!t)return;if(send({t:'chat',text:t}))i.value='';});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSheets();});
 
 /* ---------- acties ---------- */
 function myCard(id){
@@ -526,6 +569,15 @@ function act(d,el){
       if((n=name()))send({t:'join',code:code,name:n});return;
     case'solo':if((n=name()))send({t:'solo',name:n,bots:+$('bots').value});return;
     case'copy':copyInvite();return;
+    case'chat':if($('chatSheet').hidden){closeSheets();$('chatSheet').hidden=false;unread=0;renderChat();var lg=$('chatLog');lg.scrollTop=lg.scrollHeight;}else closeSheets();return;
+    case'chatClose':closeSheets();return;
+    case'quick':var q=quickList()[+d.i];if(q&&send({t:'chat',text:q,quick:true}))closeSheets();return;
+    case'quickEdit':openQuickEdit(quickList());return;
+    case'quickReset':openQuickEdit(QUICK_DEFAULT);return;
+    case'quickSave':
+      var list=[].map.call(document.querySelectorAll('#quickEdit input'),function(i){return i.value.replace(/\s+/g,' ').trim().slice(0,40);}).filter(Boolean);
+      store('d3cks-quick',JSON.stringify(list.length?list:QUICK_DEFAULT));closeSheets();renderChat();return;
+    case'quickClose':closeSheets();return;
     case'install':if(installEvt){installEvt.prompt();installEvt.userChoice.then(function(){installEvt=null;$('installBtn').hidden=true;},function(){});}return;
     case'addBot':send({t:'addBot'});return;
     case'remove':send({t:'remove',id:d.id});return;

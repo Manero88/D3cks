@@ -162,6 +162,27 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .banner.hot{background:var(--hot);color:var(--paper);box-shadow:0 6px 0 color-mix(in srgb,var(--hot) 55%,#000),0 24px 40px var(--shadow)}
 .pill.last{background:var(--hot);color:var(--paper);animation:lastp 1s ease-in-out infinite}
 @keyframes lastp{50%{transform:scale(1.08)}}
+.chatbtn{position:fixed;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:58;width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--ink);color:var(--table);display:grid;place-items:center;box-shadow:0 4px 0 var(--muted),0 12px 22px var(--shadow)}
+.chatbtn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--muted),0 8px 16px var(--shadow)}
+.chatbtn:focus-visible{outline:3px solid var(--ok);outline-offset:3px}
+.cbadge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;border-radius:999px;background:var(--hot);color:var(--paper);font:800 12px/22px var(--font-b);text-align:center;padding:0 6px}
+.sheet{position:fixed;z-index:59;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 86px);width:min(380px,calc(100vw - 32px));max-height:min(70vh,560px);
+  display:flex;flex-direction:column;gap:10px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 20px 40px var(--shadow);animation:pop .16s ease-out}
+.sheet-h{display:flex;align-items:center;gap:8px} .sheet-h strong{font:800 20px/1 var(--font-d);flex:1}
+.chatlog{list-style:none;margin:0;padding:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px;max-height:240px}
+.chatlog li{background:var(--table);border-radius:12px;padding:6px 10px;font-size:14px;overflow-wrap:anywhere}
+.chatlog li b{font-weight:800;margin-right:6px} .chatlog li.me{background:color-mix(in srgb,var(--ok) 18%,var(--table))}
+.chatlog .empty{background:none;color:var(--muted);padding:0}
+.quick{display:flex;flex-wrap:wrap;gap:6px}
+.qchip{font:700 14px var(--font-b);color:var(--ink);background:var(--table);border:1.5px solid var(--line);border-radius:999px;padding:8px 12px;cursor:pointer;min-height:40px}
+.qchip:hover{border-color:var(--ink)} .qchip:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.chatform{display:flex;gap:6px} .chatform input{min-height:42px;font-size:15px}
+.qedit{display:flex;flex-direction:column;gap:6px;overflow-y:auto} .qedit input{min-height:40px;font-size:15px}
+.cbubble{position:fixed;z-index:57;pointer-events:none;max-width:220px;background:var(--paper);color:var(--field-ink);border:2px solid var(--ink);font:700 15px/1.25 var(--font-b);padding:7px 11px;border-radius:14px;box-shadow:0 8px 18px var(--shadow);overflow-wrap:anywhere}
+.cbubble::after{content:"";position:absolute;left:22px;bottom:-8px;width:12px;height:12px;background:var(--paper);border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg)}
+.app{padding-bottom:96px}
+@media (max-width:640px){ .sheet{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));width:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);max-height:72vh} }
 .nope{position:fixed;z-index:50;pointer-events:none;background:var(--hot);color:var(--paper);font:800 17px/1 var(--font-d);padding:8px 13px;border-radius:12px;white-space:nowrap;box-shadow:0 3px 0 color-mix(in srgb,var(--hot) 60%,#000),0 10px 18px var(--shadow)}
 .nope::after{content:"";position:absolute;left:50%;bottom:-6px;width:12px;height:12px;background:var(--hot);transform:translateX(-50%) rotate(45deg);border-radius:2px}
 .charcard{position:fixed;border-radius:8px;pointer-events:none;background:linear-gradient(160deg,var(--char),color-mix(in srgb,var(--char) 70%,var(--hot)));box-shadow:0 0 0 1px color-mix(in srgb,var(--ember) 40%,transparent)}
@@ -361,7 +382,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
       </div>
       <div class="herofan" aria-hidden="true"><span class="card back d1" style="--r:-16deg"><span class="bwm">D<b>3</b>CKS</span></span><span class="card back d2" style="--r:0deg"><span class="bwm">D<b>3</b>CKS</span></span><span class="card back d3" style="--r:16deg"><span class="bwm">D<b>3</b>CKS</span></span></div>
     </div>
-    <div class="themerow"><button class="btn" type="button" id="installBtn" data-act="install" hidden>Installeer als app</button><select class="themesel" data-theme-select aria-label="Thema"><option value="auto">Thema: automatisch</option><option value="blauw">Thema: blauw</option><option value="licht">Thema: licht</option><option value="zwart">Thema: zwart</option><option value="casino">Thema: casino</option></select></div>
+    <div class="themerow"><button class="btn" type="button" id="installBtn" data-act="install" hidden>Installeer als app</button><button class="btn" type="button" data-act="quickEdit">Snelle berichten instellen</button><select class="themesel" data-theme-select aria-label="Thema"><option value="auto">Thema: automatisch</option><option value="blauw">Thema: blauw</option><option value="licht">Thema: licht</option><option value="zwart">Thema: zwart</option><option value="casino">Thema: casino</option></select></div>
     <p class="sub installhint" id="iosHint" hidden>Op je iPhone: tik in Safari op <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan staat D3cks als app op je telefoon.</p>
     <label class="field" for="name">Je naam<input id="name" maxlength="14" autocomplete="nickname" placeholder="Hoe heet je?"></label>
     <p class="err" id="homeErr" role="alert" hidden></p>
@@ -461,6 +482,19 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   </section>
 </div>
 <div id="fx" aria-hidden="true"></div>
+<button class="chatbtn" id="chatBtn" type="button" data-act="chat" aria-label="Chat openen" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.5V17.5H4A1.5 1.5 0 0 1 2.5 16V7A1.5 1.5 0 0 1 4 5.5z"/><path d="M7.5 10.5h9M7.5 13.5h6"/></svg><span class="cbadge" id="chatBadge" hidden>0</span></button>
+<section class="sheet" id="chatSheet" hidden aria-label="Chat">
+  <div class="sheet-h"><strong>Chat</strong><button class="btn small" type="button" data-act="quickEdit">Aanpassen</button><button class="btn small" type="button" data-act="chatClose">Sluiten</button></div>
+  <ol class="chatlog" id="chatLog" aria-live="polite"></ol>
+  <div class="quick" id="quickRow"></div>
+  <form class="chatform" id="chatForm"><input id="chatInput" maxlength="80" autocomplete="off" placeholder="Of typ zelf iets" aria-label="Bericht"><button class="btn" type="submit">Stuur</button></form>
+</section>
+<section class="sheet" id="quickSheet" hidden aria-label="Snelle berichten instellen">
+  <div class="sheet-h"><strong>Snelle berichten</strong><button class="btn small" type="button" data-act="quickClose">Sluiten</button></div>
+  <p class="sub">Stel ze vooraf in. Tijdens het spel tik je ze alleen aan. Maximaal 40 tekens per bericht.</p>
+  <div class="qedit" id="quickEdit"></div>
+  <div class="actions"><button class="btn" type="button" data-act="quickReset">Standaard terugzetten</button><button class="btn main" type="button" data-act="quickSave">Opslaan</button></div>
+</section>
 <script src="app.js"></script>
 </body>
 </html>
