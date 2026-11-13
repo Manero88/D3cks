@@ -43,9 +43,9 @@ function jit(id,top){var r=top?((id*37)%9)-4:((id*37)%25)-12,x=((id*53)%15)-7,y=
 /* ---------- verbinding ---------- */
 function connect(){
   clearTimeout(retry);
-  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);ws.binaryType='arraybuffer';
   ws.onopen=function(){online=true;$('conn').hidden=true;if(sess)send({t:'rejoin',code:sess.code,pid:sess.pid,token:sess.token});};
-  ws.onmessage=function(e){var m;try{m=JSON.parse(e.data);}catch(x){return;}onMsg(m);};
+  ws.onmessage=function(e){if(typeof e.data!=='string'){Talk.play(e.data);return;}var m;try{m=JSON.parse(e.data);}catch(x){return;}onMsg(m);};
   ws.onclose=function(){online=false;busy=false;if(screen!=='home')$('conn').hidden=false;retry=setTimeout(connect,1500);};
   ws.onerror=function(){};
 }
@@ -55,10 +55,10 @@ function showErr(msg){
   el.textContent=msg;el.hidden=false;clearTimeout(errT);errT=setTimeout(function(){el.hidden=true;},5000);
 }
 function show(s){
-  screen=s;$('chatBtn').hidden=s==='home';if(s==='home')closeSheets();['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
+  screen=s;$('chatBtn').hidden=s==='home';$('talkBtn').hidden=s==='home';if(s==='home')closeSheets();['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
   if(s==='home')$('conn').hidden=true;
 }
-function goHome(){chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
+function goHome(){Talk.stop();talkingSeats={};chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
 function setHash(code){try{history.replaceState(null,'',code?'#'+code:location.pathname+location.search);}catch(e){}}
 function onMsg(m){
   if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);}
@@ -71,6 +71,7 @@ function onMsg(m){
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
   else if(m.t==='left')goHome();
+  else if(m.t==='ptt'){if(m.on)talkingSeats[m.seat]=1;else delete talkingSeats[m.seat];applyTalking();}
   else if(m.t==='chatlog'){chatItems=(m.items||[]).slice(-50);renderChat();}
   else if(m.t==='chat'){
     chatItems.push(m.item);if(chatItems.length>50)chatItems.shift();
@@ -89,7 +90,7 @@ function renderLobby(){
   lob.players.forEach(function(p){
     if(p.id===lob.hostId)hostName=p.name;
     var tags=[];if(p.id===lob.you)tags.push('jij');if(p.id===lob.hostId)tags.push('host');if(p.bot)tags.push('bot');if(!p.connected)tags.push('verbinding kwijt');
-    h+='<li'+(p.connected?'':' class="off"')+'><span class="grow">'+esc(p.name)+'</span><span class="tag">'+tags.join(' · ')+'</span>'+
+    h+='<li data-seat="'+lob.players.indexOf(p)+'"'+(p.connected?'':' class="off"')+'><span class="grow">'+esc(p.name)+'</span><span class="tag">'+tags.join(' · ')+'</span>'+
       (host&&p.id!==lob.you&&(p.bot||!p.connected)?'<button type="button" class="btn small" data-act="remove" data-id="'+p.id+'" aria-label="'+esc(p.name)+' weghalen">Weghalen</button>':'')+'</li>';
   });
   $('plist').innerHTML=h;
@@ -100,6 +101,7 @@ function renderLobby(){
     c+='<p class="sub">'+(n<lob.min?'Je hebt minimaal '+lob.min+' spelers nodig. Deel de code of voeg bots toe.':'Iedereen binnen? Dan kun je starten. Meedoen kan daarna niet meer.')+'</p>';
   }else c='<p class="waiting">Wachten tot '+esc(hostName)+' het spel start<i>.</i><i>.</i><i>.</i></p><p class="sub">Lees ondertussen de regels en tips door.</p>';
   $('lobCtl').innerHTML=c;
+  applyTalking();
 }
 
 /* ---------- spelscherm ---------- */
@@ -218,6 +220,7 @@ function render(){
   $('me').innerHTML='<div class="seat-h"><span class="nm">'+esc(me.name)+'</span><span class="tag">jij</span>'+(myTurn?'<span class="pill">aan de beurt</span>':'')+(lastOne(me)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===you?'<span class="pill">winnaar</span>':'')+'</div>'+pk+
     '<div class="me-row"><div class="zone"><span class="zl">Op tafel: open op blind</span>'+slotsHtml(me,true,st)+'</div>'+
     '<div class="zone" style="flex:1 1 220px"><span class="zl">Hand · '+v.hand.length+'</span><div class="hand">'+hh+'</div></div></div>';
+  applyTalking();
 }
 
 /* ---------- grote meldingen ---------- */
@@ -476,6 +479,8 @@ var Snd=(function(){
     snap:function(c,t){tone(c,t,{f:760,f2:140,dur:.4,g:.2});},
     alarm:function(c,t){[0,.22,.44].forEach(function(d){tone(c,t+d,{type:'square',f:880,dur:.1,g:.07});tone(c,t+d+.11,{type:'square',f:660,dur:.1,g:.07});});},
     fanfare:function(c,t){[392,523,659].forEach(function(f,i){tone(c,t+i*.1,{type:'triangle',f:f,dur:i===2?.4:.15,g:.18});});},
+    pttOn:function(c,t){tone(c,t,{f:660,f2:990,dur:.07,g:.08});},
+    pttOff:function(c,t){tone(c,t,{f:990,f2:660,dur:.07,g:.06});},
     chat:function(c,t){tone(c,t,{f:880,f2:1320,dur:.12,g:.1});},
     turn:function(c,t){tone(c,t,{f:1047,dur:.35,g:.15});tone(c,t+.08,{f:1568,dur:.3,g:.08});}
   };
@@ -483,6 +488,7 @@ var Snd=(function(){
     play:function(n,delay){if(!on||!S[n])return;var c=ac();if(!c||c.state!=='running')return;S[n](c,c.currentTime+.02+(delay||0)/1000);},
     unlock:function(){if(on)ac();},
     isOn:function(){return on;},
+    ctx:function(){return ac();},
     toggle:function(){on=!on;store('d3cks-sound',on?'1':'0');if(on)ac();return on;}
   };
 })();
@@ -538,6 +544,85 @@ function chatBubble(it){
 }
 $('chatForm').addEventListener('submit',function(e){e.preventDefault();var i=$('chatInput'),t=i.value.trim();if(!t)return;if(send({t:'chat',text:t}))i.value='';});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSheets();});
+
+/* ---------- praten (push-to-talk) ----------
+   Knop ingedrukt houden (of spatiebalk op de computer). De microfoon wordt omgezet naar
+   24 kHz, per sample 1 byte (logaritmisch), en in kleine stukjes via de server verstuurd.
+   De ontvanger zet ze achter elkaar af met een kleine buffer tegen haperingen. */
+var talkingSeats={};
+function applyTalking(){
+  [].forEach.call(document.querySelectorAll('.talking'),function(e){e.classList.remove('talking');});
+  Object.keys(talkingSeats).forEach(function(k){
+    var i=+k,el=null;
+    if(screen==='game'&&v)el=i===v.you?$('me'):$('opps').querySelector('[data-seat="'+i+'"]');
+    else if(screen==='lobby')el=$('plist').querySelector('[data-seat="'+i+'"]');
+    if(el)el.classList.add('talking');
+  });
+}
+var Talk=(function(){
+  var RATE=24000,stream=null,actx=null,srcN=null,proc=null,talking=false,stopT=null,maxT=null,nextAt={},vgain=null;
+  function enc(x){var s=x<0?-x:x;if(s>1)s=1;return(x<0?128:0)|Math.round(127*Math.log(1+255*s)/Math.log(256));}
+  function dec(b){var m=(b&127)/127,y=(Math.pow(256,m)-1)/255;return b&128?-y:y;}
+  function ui(on){$('talkBtn').classList.toggle('on',on);$('talkBtn').querySelector('.tlabel').textContent=on?'Praat…':'Praat';}
+  function mic(){
+    if(stream&&stream.active)return Promise.resolve(stream);
+    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(function(s){stream=s;return s;});
+  }
+  function start(){
+    if(talking||screen==='home')return;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){showErr('Praten werkt niet in deze browser.');return;}
+    if(!online){showErr('Geen verbinding met de server.');return;}
+    talking=true;clearTimeout(stopT);ui(true);
+    if(!actx){var C=window.AudioContext||window.webkitAudioContext;actx=new C();}
+    if(actx.state==='suspended')actx.resume();
+    mic().then(function(s){
+      if(!talking)return;
+      srcN=actx.createMediaStreamSource(s);proc=actx.createScriptProcessor(2048,1,1);
+      var ratio=actx.sampleRate/RATE;
+      proc.onaudioprocess=function(e){
+        if(!talking||!ws||ws.readyState!==1)return;
+        var inp=e.inputBuffer.getChannelData(0),n=Math.floor(inp.length/ratio),out=new Uint8Array(n+1);
+        out[0]=1;for(var k=0;k<n;k++)out[k+1]=enc(inp[Math.floor(k*ratio)]);
+        ws.send(out.buffer);
+      };
+      srcN.connect(proc);proc.connect(actx.destination);
+      send({t:'ptt',on:true});Snd.play('pttOn');
+      maxT=setTimeout(stop,15000);
+    },function(){talking=false;ui(false);showErr('Geen toegang tot de microfoon. Sta het toe in je browserinstellingen.');});
+  }
+  function stop(){
+    if(!talking)return;talking=false;clearTimeout(maxT);ui(false);
+    try{if(srcN)srcN.disconnect();if(proc){proc.onaudioprocess=null;proc.disconnect();}}catch(e){}
+    srcN=proc=null;if(online)send({t:'ptt',on:false});Snd.play('pttOff');
+    // microfoon nog even openhouden, zodat de volgende keer meteen werkt; daarna dicht
+    stopT=setTimeout(function(){if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}},30000);
+  }
+  function play(buf){
+    var a=new Uint8Array(buf);if(a.length<3)return;
+    var c=Snd.ctx();if(!c)return;if(c.state==='suspended')c.resume();
+    if(!vgain){vgain=c.createGain();vgain.gain.value=1.4;vgain.connect(c.destination);}
+    var seat=a[0],n=a.length-2,ab=c.createBuffer(1,n,RATE),ch=ab.getChannelData(0);
+    for(var i=0;i<n;i++)ch[i]=dec(a[i+2]);
+    var s=c.createBufferSource();s.buffer=ab;s.connect(vgain);
+    var now=c.currentTime,t=nextAt[seat]||0;if(t<now+.04)t=now+.15;
+    s.start(t);nextAt[seat]=t+ab.duration;
+  }
+  return{start:start,stop:stop,play:play};
+})();
+(function(){
+  var b=$('talkBtn');
+  b.addEventListener('pointerdown',function(e){e.preventDefault();Snd.unlock();try{b.setPointerCapture(e.pointerId);}catch(x){}Talk.start();});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(function(n){b.addEventListener(n,function(){Talk.stop();});});
+  b.addEventListener('contextmenu',function(e){e.preventDefault();});
+  b.addEventListener('keydown',function(e){if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();Talk.start();}});
+  b.addEventListener('keyup',function(e){if(e.key===' '||e.key==='Enter'){e.preventDefault();Talk.stop();}});
+  var spaceTalk=false;
+  function typing(){var t=(document.activeElement||{}).tagName||'';return /INPUT|TEXTAREA|SELECT/.test(t);}
+  document.addEventListener('keydown',function(e){if(e.code==='Space'&&!e.repeat&&screen!=='home'&&!typing()&&document.activeElement!==b){e.preventDefault();spaceTalk=true;Talk.start();}});
+  document.addEventListener('keyup',function(e){if(e.code==='Space'&&spaceTalk){e.preventDefault();spaceTalk=false;Talk.stop();}});
+  window.addEventListener('blur',function(){Talk.stop();});
+  document.addEventListener('visibilitychange',function(){if(document.hidden)Talk.stop();});
+})();
 
 /* ---------- acties ---------- */
 function myCard(id){

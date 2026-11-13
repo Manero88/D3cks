@@ -166,6 +166,17 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
   background:var(--ink);color:var(--table);display:grid;place-items:center;box-shadow:0 4px 0 var(--muted),0 12px 22px var(--shadow)}
 .chatbtn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--muted),0 8px 16px var(--shadow)}
 .chatbtn:focus-visible{outline:3px solid var(--ok);outline-offset:3px}
+.talkbtn{position:fixed;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 86px);z-index:58;width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--panel);color:var(--ink);display:grid;place-items:center;box-shadow:0 0 0 2px var(--line),0 4px 0 var(--muted),0 12px 22px var(--shadow);
+  touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.talkbtn .tlabel{position:absolute;bottom:-18px;font:700 11px var(--font-b);color:var(--muted);letter-spacing:.04em}
+.talkbtn.on{background:var(--hot);color:var(--paper);animation:talkp .9s ease-in-out infinite}
+.talkbtn.on .tlabel{color:var(--hot)}
+@keyframes talkp{50%{box-shadow:0 0 0 10px color-mix(in srgb,var(--hot) 25%,transparent),0 12px 22px var(--shadow)}}
+.talkbtn:focus-visible{outline:3px solid var(--ok);outline-offset:3px}
+.seat,.plist li{position:relative}
+.seat.talking,.plist li.talking{box-shadow:0 0 0 3px var(--ok)}
+.seat.talking::after,.plist li.talking::after{content:"praat…";position:absolute;top:8px;right:10px;background:var(--ok);color:var(--table);font:800 11px/1 var(--font-b);padding:4px 8px;border-radius:999px;letter-spacing:.04em;animation:lastp 1s ease-in-out infinite}
 .cbadge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;border-radius:999px;background:var(--hot);color:var(--paper);font:800 12px/22px var(--font-b);text-align:center;padding:0 6px}
 .sheet{position:fixed;z-index:59;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 86px);width:min(380px,calc(100vw - 32px));max-height:min(70vh,560px);
   display:flex;flex-direction:column;gap:10px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 20px 40px var(--shadow);animation:pop .16s ease-out}
@@ -181,8 +192,8 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .qedit{display:flex;flex-direction:column;gap:6px;overflow-y:auto} .qedit input{min-height:40px;font-size:15px}
 .cbubble{position:fixed;z-index:57;pointer-events:none;max-width:220px;background:var(--paper);color:var(--field-ink);border:2px solid var(--ink);font:700 15px/1.25 var(--font-b);padding:7px 11px;border-radius:14px;box-shadow:0 8px 18px var(--shadow);overflow-wrap:anywhere}
 .cbubble::after{content:"";position:absolute;left:22px;bottom:-8px;width:12px;height:12px;background:var(--paper);border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg)}
-.app{padding-bottom:96px}
-@media (max-width:640px){ .sheet{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));width:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);max-height:72vh} }
+.app{padding-bottom:170px}
+@media (max-width:640px){ .sheet{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));width:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);max-height:72vh} .talkbtn{bottom:auto;top:auto;right:auto;left:max(16px,calc(env(safe-area-inset-left,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 16px)} }
 .nope{position:fixed;z-index:50;pointer-events:none;background:var(--hot);color:var(--paper);font:800 17px/1 var(--font-d);padding:8px 13px;border-radius:12px;white-space:nowrap;box-shadow:0 3px 0 color-mix(in srgb,var(--hot) 60%,#000),0 10px 18px var(--shadow)}
 .nope::after{content:"";position:absolute;left:50%;bottom:-6px;width:12px;height:12px;background:var(--hot);transform:translateX(-50%) rotate(45deg);border-radius:2px}
 .charcard{position:fixed;border-radius:8px;pointer-events:none;background:linear-gradient(160deg,var(--char),color-mix(in srgb,var(--char) 70%,var(--hot)));box-shadow:0 0 0 1px color-mix(in srgb,var(--ember) 40%,transparent)}
@@ -367,7 +378,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
 .rules b{color:var(--ink)}
 .conn{position:fixed;left:50%;top:max(10px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--hot);color:var(--paper);font-weight:700;border-radius:999px;padding:6px 14px;box-shadow:0 6px 14px var(--shadow);white-space:nowrap}
 @media (max-width:700px){ .lobby-grid{grid-template-columns:minmax(0,1fr)} }
-@media (prefers-reduced-motion:reduce){ .pill.last,.herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*,.revealed,.junk>.c-main,.c-syr{animation:none} .c-syr{display:none} }
+@media (prefers-reduced-motion:reduce){ .talkbtn.on,.seat.talking::after,.plist li.talking::after,.pill.last,.herofan .card,.waiting i,.ic-10 .fl,.landed>.c-ic svg,.morph>*,.revealed,.junk>.c-main,.c-syr{animation:none} .c-syr{display:none} }
 </style>
 </head>
 <body>
@@ -482,6 +493,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   </section>
 </div>
 <div id="fx" aria-hidden="true"></div>
+<button class="talkbtn" id="talkBtn" type="button" aria-label="Ingedrukt houden om te praten" title="Ingedrukt houden om te praten (op de computer: spatiebalk)" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></svg><span class="tlabel">Praat</span></button>
 <button class="chatbtn" id="chatBtn" type="button" data-act="chat" aria-label="Chat openen" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.5V17.5H4A1.5 1.5 0 0 1 2.5 16V7A1.5 1.5 0 0 1 4 5.5z"/><path d="M7.5 10.5h9M7.5 13.5h6"/></svg><span class="cbadge" id="chatBadge" hidden>0</span></button>
 <section class="sheet" id="chatSheet" hidden aria-label="Chat">
   <div class="sheet-h"><strong>Chat</strong><button class="btn small" type="button" data-act="quickEdit">Aanpassen</button><button class="btn small" type="button" data-act="chatClose">Sluiten</button></div>

@@ -5,7 +5,9 @@ const WebSocket = require('ws');
 const { server } = require('../server.js');
 function client(port) {
   const ws = new WebSocket('ws://127.0.0.1:' + port), c = { ws, msgs: [], sess: null, lobby: null, v: null, errors: [] };
-  ws.on('message', raw => {
+  c.bin = [];
+  ws.on('message', (raw, isBinary) => {
+    if (isBinary) { c.bin.push(raw); return; }
     const m = JSON.parse(raw); c.msgs.push(m);
     if (m.t === 'joined') c.sess = m;
     if (m.t === 'lobby') c.lobby = m;
@@ -42,6 +44,17 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   await wait(() => a.lobby.players.length === 2);
   assert.notStrictEqual(a.lobby.players[0].name, a.lobby.players[1].name);
   // chat: komt bij iedereen aan, wordt opgeschoond, en spam wordt afgeremd
+  // praten: zonder 'ptt aan' wordt spraak genegeerd; daarna komt hij bij de ander aan met de stoel ervoor
+  a.ws.send(Buffer.from([1, 5, 6, 7]));
+  await new Promise(r => setTimeout(r, 60)); assert.strictEqual(b.bin.length, 0, 'spraak zonder ptt');
+  a.send({ t: 'ptt', on: true });
+  await wait(() => b.msgs.some(m => m.t === 'ptt' && m.on && m.seat === 0));
+  a.ws.send(Buffer.from([1, 5, 6, 7]));
+  await wait(() => b.bin.length === 1);
+  assert.deepStrictEqual([...b.bin[0]], [0, 1, 5, 6, 7]);
+  assert.strictEqual(a.bin.length, 0, 'eigen stem komt niet terug');
+  a.send({ t: 'ptt', on: false });
+  await wait(() => b.msgs.some(m => m.t === 'ptt' && !m.on));
   a.send({ t: 'chat', text: '  Hoi\n<b>allemaal</b>  ' + 'x'.repeat(200), quick: false });
   await wait(() => b.msgs.some(m => m.t === 'chat'));
   const ci = b.msgs.find(m => m.t === 'chat').item;

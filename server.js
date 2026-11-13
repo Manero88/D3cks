@@ -164,6 +164,24 @@ function schedule(room, fxDur) {
 }
 function seatOf(room, pid) { return room.players.findIndex(p => p.id === pid); }
 
+/* ---------- praten (push-to-talk) ----------
+   Spraak gaat in kleine stukjes via deze server naar de andere spelers in de kamer.
+   Zo is er geen rechtstreekse verbinding tussen telefoons (en dus geen extra server) nodig.
+   Niets wordt opgeslagen. */
+function broadcastPtt(room, idx, on) {
+  room.players.forEach((q, i) => { if (!q.bot && i !== idx) send(q.ws, { t: 'ptt', seat: idx, on }); });
+}
+function relayVoice(ws, buf) {
+  const room = ws.room;
+  if (!room || !ws.talking || buf.length < 2 || buf.length > 2000) return;
+  const now = Date.now();
+  if (!ws.vWin || now - ws.vWin > 1000) { ws.vWin = now; ws.vBytes = 0; }
+  ws.vBytes += buf.length; if (ws.vBytes > 40000) return;          // max ~40 kB per seconde
+  const idx = seatOf(room, ws.pid); if (idx < 0 || idx > 255) return;
+  const out = Buffer.concat([Buffer.from([idx]), buf]);
+  room.players.forEach(q => { if (!q.bot && q.ws && q.ws !== ws && q.ws.readyState === 1) q.ws.send(out, { binary: true }); });
+}
+
 /* ---------- berichten ---------- */
 const handlers = {
   host(ws, m) {
@@ -258,6 +276,13 @@ const handlers = {
     room.chat.push(item); if (room.chat.length > 30) room.chat.shift();
     room.players.forEach(q => { if (!q.bot) send(q.ws, { t: 'chat', item }); });
   },
+  ptt(ws, m) {
+    const room = ws.room; if (!room) return;
+    const idx = seatOf(room, ws.pid); if (idx < 0) return;
+    ws.talking = !!m.on; clearTimeout(ws.talkT);
+    if (ws.talking) ws.talkT = setTimeout(() => { ws.talking = false; if (ws.room) broadcastPtt(ws.room, idx, false); }, 16000);
+    broadcastPtt(room, idx, ws.talking);
+  },
   leave(ws) { drop(ws, true); send(ws, { t: 'left' }); }
 };
 function move(ws, fn) {
@@ -269,6 +294,7 @@ function move(ws, fn) {
 // Speler valt weg (verbinding kwijt) of verlaat het spel bewust.
 function drop(ws, leaving) {
   const room = ws.room; if (!room) return;
+  if (ws.talking) { ws.talking = false; clearTimeout(ws.talkT); broadcastPtt(room, seatOf(room, ws.pid), false); }
   ws.room = null;
   const p = room.players.find(q => q.id === ws.pid && q.ws === ws);
   if (!p) return;
@@ -291,7 +317,8 @@ function drop(ws, leaving) {
 wss.on('connection', ws => {
   ws.alive = true;
   ws.on('pong', () => { ws.alive = true; });
-  ws.on('message', raw => {
+  ws.on('message', (raw, isBinary) => {
+    if (isBinary) return relayVoice(ws, raw);
     let m; try { m = JSON.parse(raw); } catch (e) { return; }
     const h = m && typeof m.t === 'string' && Object.prototype.hasOwnProperty.call(handlers, m.t) && handlers[m.t];
     if (!h) return;
