@@ -67,8 +67,10 @@ function onMsg(m){
     var fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase!=='over'),pre={pile:$('pileBox').innerHTML,burned:fresh||!v?0:v.burned},wasMine=!!(v&&v.myMove);
     var pv=fresh?null:v;v=m.v;busy=false;show('game');
     if(fresh){sel=null;picker=null;cutStep=1;cutK=null;}
-    if(motion&&m.v.phase==='swap'&&(fresh||(pv&&pv.phase==='cut'))){$('app').classList.add('dealing');setTimeout(function(){$('app').classList.remove('dealing');},900);}
+    var doDeal=motion&&m.v.phase==='swap'&&pv&&pv.phase==='cut';
+    stopDeal();if(doDeal)$('app').classList.add('predeal');
     render();runFx(pre,m.fx||[]);announce(pv,v,sfx(m.fx||[],wasMine));
+    if(doDeal)dealFx(1050);
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
   else if(m.t==='left')goHome();
@@ -148,7 +150,7 @@ function render(){
   document.title=(myTurn?'● Jouw beurt · ':'')+'3Decks';
   $('leaveBtn').textContent=confirmLeave?'Zeker weten?':'Verlaten';
 
-  var ch='<span class="chip">Code <b>'+esc(v.code)+'</b></span><span class="chip">Deck <b>'+v.deck+'</b></span><span class="chip">Verbrand <b>'+v.burned+'</b></span>';
+  var ch='<span class="chip">Code <b>'+esc(v.code)+'</b></span><span class="chip">Deck <b id="deckChipN">'+v.deck+'</b></span><span class="chip">Verbrand <b>'+v.burned+'</b></span>';
   if(v.phase==='play')ch+='<span class="chip">Richting <b>'+(v.dir===1?'↻':'↺')+'</b> daarna <b>'+esc(nextSeat()===you?'jij':v.players[nextSeat()].name)+'</b></span>';
   if(v.sevenBy!==null)ch+='<span class="chip hot"><b>7-regel actief</b></span>';
   if(v.endgame)ch+='<span class="chip hot"><b>Endgame</b></span>';
@@ -237,18 +239,18 @@ function render(){
 /* ---------- trekken en couperen ---------- */
 var cutK=null,cutStep=1;
 function drawBoard(){
-  var rs=v.draws||[],anim=v.phase==='draw',h='<div class="drawboard">',last=0;
+  var rs=v.draws||[],anim=v.phase==='draw',h='<div class="drawboard">',last=0,off=0;
   rs.forEach(function(round,ri){
     var per={},order=[];round.forEach(function(r){if(!per[r.pi]){per[r.pi]=[];order.push(r.pi);}per[r.pi].push(r);});
     h+='<div class="drow">'+(ri?'<span class="dlab">Gelijk, opnieuw:</span>':'');
     order.forEach(function(pi,j){
-      var list=per[pi],fin=list[list.length-1],win=ri===rs.length-1&&pi===v.start,d=ri*.9+j*.15;last=Math.max(last,d);
+      var list=per[pi],fin=list[list.length-1],win=ri===rs.length-1&&pi===v.start,d=off+j*.45;last=Math.max(last,d);
       h+='<div class="dcell'+(win?' win':'')+'">'+face(fin.c,{cls:anim?'revealed':'',attr:' style="--rd:'+d.toFixed(2)+'s"'})+
         '<span class="dname">'+(pi===v.you?'Jij':esc(v.players[pi].name))+'</span>'+
         (list.length>1?'<span class="dnote">nar, opnieuw</span>':'')+
         (win?'<span class="pill'+(anim?' revealed':'')+'" style="--rd:'+(last+.5).toFixed(2)+'s">begint</span>':'')+'</div>';
     });
-    h+='</div>';
+    h+='</div>';off+=order.length*.45+1;
   });
   return h+'</div>';
 }
@@ -279,6 +281,44 @@ function cutFx(dr,lower){
                  :[{transform:'translate(0,0)'},{transform:'translate(0,0)'}],o);
   a.onfinish=function(){A.remove();B.remove();};
   setTimeout(function(){toast('Gecoupeerd',dr);},300);
+}
+
+/* ---------- delen ----------
+   Na het couperen vliegt elke kaart van het deck naar de spelers, rondje voor rondje en
+   in speelvolgorde vanaf wie begint: eerst de blinde kaarten, dan de open kaarten, dan de hand. */
+var dealTimers=[];
+function stopDeal(){dealTimers.forEach(clearTimeout);dealTimers=[];$('app').classList.remove('predeal');}
+function dealFx(delay){
+  var n=v.players.length,order=[],i=v.start;
+  for(var k=0;k<n;k++){order.push(i);i=(i+v.dir+n)%n;}
+  var deckEl=$('deckBox'),dr=rectOf(deckEl),steps=[];
+  function targets(pi,zone,j){
+    if(pi===v.you){
+      var slot=$('me').querySelectorAll('.slots .slot')[j];
+      if(zone==='blind')return slot&&slot.querySelector('.card.back');
+      if(zone==='open')return slot&&slot.querySelector('.cardbtn .card, .card:not(.back)');
+      var c=v.hand[j],btn=c&&$('me').querySelector('[data-ids*=",'+c.id+',"]');return btn&&btn.querySelector('.card');
+    }
+    var seat=$('opps').querySelector('[data-seat="'+pi+'"]');if(!seat)return null;
+    var sl=seat.querySelectorAll('.slots .slot')[j];
+    if(zone==='blind')return sl&&sl.querySelector('.card.back');
+    if(zone==='open')return sl&&sl.querySelector('.card:not(.back)');
+    return seat.querySelectorAll('.fan .card')[j];
+  }
+  ['blind','open','hand'].forEach(function(zone){for(var j=0;j<3;j++)order.forEach(function(pi){steps.push({pi:pi,zone:zone,j:j});});});
+  var total=steps.length,gap=Math.max(55,Math.min(120,5200/total)),left=v.deck+total;
+  steps.forEach(function(s,idx){
+    dealTimers.push(setTimeout(function(){
+      var el=targets(s.pi,s.zone,s.j);left--;$('deckCap').innerHTML='Deck <b>'+left+'</b>';var dc=$('deckChipN');if(dc)dc.textContent=left;
+      if(!el||!dr)return;
+      var r=el.getBoundingClientRect(),mine=s.pi===v.you&&s.zone!=='blind',card=null;
+      if(mine){card=s.zone==='hand'?v.hand[s.j]:v.players[v.you].open[s.j];}
+      Snd.play('draw');
+      fly(card||{d:v.deckD||1},null,dr,{left:r.left,top:r.top,width:r.width,height:r.height},{dur:420,flip:!!card,backOnly:!card,cw:r.width,s:Math.max(.4,dr.width/r.width),rot:(s.pi===v.you?-8:12),
+        done:function(){el.style.visibility='visible';}});
+    },delay+idx*gap));
+  });
+  dealTimers.push(setTimeout(function(){$('app').classList.remove('predeal');$('deckCap').innerHTML='Deck <b>'+v.deck+'</b>';var dc=$('deckChipN');if(dc)dc.textContent=v.deck;},delay+total*gap+500));
 }
 
 /* ---------- grote meldingen ---------- */

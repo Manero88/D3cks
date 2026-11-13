@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const BOT_DELAY = +process.env.BOT_DELAY || 1000;      // denktijd van een bot (ms)
 const AWAY_DELAY = +process.env.AWAY_DELAY || 15000;   // zo lang wachten we op een speler zonder verbinding
 const FX_WAIT = process.env.FX_WAIT === '0' ? 0 : 1;        // bots wachten tot animaties klaar zijn (0 = uit, voor tests)
-const DRAW_SHOW = +process.env.DRAW_SHOW || 2600;          // zo lang blijven de getrokken kaarten in beeld
+const DRAW_SHOW = +process.env.DRAW_SHOW || 1800;          // zo lang blijven de getrokken kaarten in beeld
 const ROOM_TTL = +process.env.ROOM_TTL || 10 * 60000;  // lege kamer opruimen na 10 minuten
 const MAX_PLAYERS = 8, MIN_PLAYERS = 3;
 const BOT_NAMES = ['Noor', 'Sem', 'Lotte', 'Daan', 'Fenna', 'Bram', 'Jip'];
@@ -148,7 +148,10 @@ function schedule(room, fxDur) {
   if (g.phase === 'over') { if (g.winner !== null) room.lastWinner = g.winner; return; }
   if (g.phase === 'draw') {
     // even tijd om de getrokken kaarten te laten zien
-    room.timer = setTimeout(() => { if (room.g === g && E.toCut(g)) { broadcastState(room); schedule(room, 0); } }, DRAW_SHOW + 900 * (g.draws.length - 1));
+    // zelfde ritme als in de browser: elke kaart 0,45 s na de vorige, 1 s pauze tussen rondes
+    let anim = 0;
+    g.draws.forEach((round, ri) => { const n = new Set(round.map(r => r.pi)).size; anim += ri === g.draws.length - 1 ? (n - 1) * 450 + 1300 : n * 450 + 1000; });
+    room.timer = setTimeout(() => { if (room.g === g && E.toCut(g)) { broadcastState(room); schedule(room, 0); } }, FX_WAIT * anim + DRAW_SHOW);
     return;
   }
   if (g.phase === 'cut') {
