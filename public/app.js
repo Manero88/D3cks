@@ -102,6 +102,7 @@ function onMsg(m){
 function renderLobby(){
   var host=lob.hostId===lob.you,n=lob.players.length,hostName='de host';
   $('lobCode').textContent=lob.code;
+  setShareLinks();
   $('lobCount').textContent='Spelers ('+n+' van '+lob.max+')';
   var h='';
   lob.players.forEach(function(p){
@@ -883,11 +884,24 @@ function tryPlay(id,el){
   else{picker={card:c,values:v.legal[id]};pickSrc=lastSrc;}
 }
 function name(){var n=$('name').value.trim();if(!n){showErr('Vul eerst je naam in.');$('name').focus();return null;}store('d3cks-name',n);return n;}
+// Uitnodiging: link met de code erin, zodat de code bij het openen al is ingevuld.
+function inviteUrl(){return location.origin+location.pathname+'#'+lob.code;}
+function inviteText(){return 'Doe mee met D3cks! Code '+lob.code+': '+inviteUrl();}
+function setShareLinks(){
+  $('waLink').href='https://wa.me/?text='+encodeURIComponent(inviteText());
+  $('tgLink').href='https://t.me/share/url?url='+encodeURIComponent(inviteUrl())+'&text='+encodeURIComponent('Doe mee met D3cks! Code '+lob.code);
+  $('shareBtn').hidden=!navigator.share;
+}
 function copyInvite(){
-  var url=location.origin+location.pathname+'#'+lob.code,btn=$('copyBtn');
-  var ok=function(){btn.textContent='Gekopieerd';setTimeout(function(){btn.textContent='Kopieer uitnodiging';},2000);};
+  var url=inviteUrl(),btn=$('copyBtn');
+  var ok=function(){btn.textContent='Gekopieerd';setTimeout(function(){btn.textContent='Kopieer link';},2000);};
   var no=function(){showErr('Kopiëren lukte niet. Deel deze link: '+url);};
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText('Doe mee met 3Decks: '+url+' (code '+lob.code+')').then(ok,no);else no();
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(inviteText()).then(ok,no);else no();
+}
+// Delen via het deelmenu van de telefoon (WhatsApp, Telegram, sms, ...).
+function shareInvite(){
+  if(!navigator.share)return copyInvite();
+  navigator.share({title:'D3cks',text:'Doe mee met D3cks! Code '+lob.code,url:inviteUrl()}).catch(function(e){if(e&&e.name!=='AbortError')copyInvite();});
 }
 function act(d,el){
   var id=d.id!==undefined&&d.act!=='remove'?+d.id:null,n;
@@ -901,6 +915,7 @@ function act(d,el){
       if((n=name()))send({t:'join',code:code,name:n});return;
     case'solo':if((n=name()))send({t:'solo',name:n,bots:+$('bots').value});return;
     case'copy':copyInvite();return;
+    case'share':shareInvite();return;
     case'chat':if($('chatSheet').hidden){closeSheets();$('chatSheet').hidden=false;unread=0;renderChat();var lg=$('chatLog');lg.scrollTop=lg.scrollHeight;}else closeSheets();return;
     case'chatClose':closeSheets();return;
     case'text':showText=!showText;store('d3cks-text',showText?'1':'0');txtLabel();break;
