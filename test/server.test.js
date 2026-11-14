@@ -21,7 +21,7 @@ function client(port) {
 function autoplay(c) {
   const v = c.v;
   if (v.phase === 'draw') return;
-  if (v.phase === 'cut') { if (v.start === v.you) c.send({ t: 'cut', k: 60, lower: true }); return; }
+  if (v.phase === 'cut') { if (v.cutter === v.you) c.send({ t: 'cut', k: 60, lower: true, start: v.you, dir: -1 }); return; }
   if (v.phase === 'swap') { if (!v.players[v.you].ready) c.send({ t: 'ready' }); return; }
   if (v.phase !== 'play') return;
   if (v.pending) return c.send({ t: 'pick', as: v.pending.values[0] });
@@ -98,12 +98,24 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   assert(a.v.players.every(p => p.blind.every(c => typeof c === 'object') && Array.isArray(p.cards)));
   const during = a.msgs.filter(m => m.t === 'state' && m.v.phase === 'play').pop().v;
   assert(during.players.every(p => p.cards === null && p.blind.every(d => typeof d === 'number')));
-  b2.send({ t: 'again' }); await new Promise(r => setTimeout(r, 50)); assert(a.v.phase === 'over'); // niet de host
-  a.send({ t: 'again' }); await wait(() => a.v.phase !== 'over');
+  // rematch: b2 vraagt aan, a krijgt de vraag en zegt ja; daarna lobby met de winnaar als kiezer
+  const winName = a.v.players[a.v.winner].name;
+  b2.send({ t: 'rematch' });
+  await wait(() => a.msgs.some(m => m.t === 'rematch' && m.waiting.some(w => w.id === a.sess.pid)));
+  a.send({ t: 'rematchVote', yes: true });
+  await wait(() => a.lobby && a.lobby.rematch && b2.lobby && b2.lobby.rematch);
+  assert.strictEqual(a.lobby.rematch.chooser, winName);
+  a.msgs.length = 0; a.v = null;
+  a.send({ t: 'start' });
+  await wait(() => a.msgs.some(m => m.t === 'state'));
+  const r0 = a.msgs.find(m => m.t === 'state').v;
+  assert.strictEqual(r0.phase, 'cut', 'rematch begint met couperen, niet met opgooien');
+  assert.strictEqual(r0.players[r0.cutter].name, winName);
+  await wait(() => a.v && (a.v.phase === 'swap' || a.v.phase === 'play'));
   // tegen bots
   const s = client(port); await s.open; s.auto = true; s.send({ t: 'solo', name: 'Solo', bots: 4 });
   await wait(() => s.v && s.v.players.length === 5);
   await wait(() => s.v.phase === 'over', 60000);
-  console.log('server ok: potje met host, joiner en bot uitgespeeld; winnaar ' + a.v.players[a.msgs.filter(m => m.t === 'state' && m.v.phase === 'over')[0].v.winner].name);
+  console.log('server ok: potje met host, joiner en bot uitgespeeld, rematch gestart; winnaar eerste potje ' + winName);
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

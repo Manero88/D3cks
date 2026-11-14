@@ -73,14 +73,15 @@ function addBot(room) {
   room.players.push({ id: 'p' + (++room.seq), name, bot: true, connected: true, left: false, ready: true });
 }
 function humans(room) { return room.players.filter(p => !p.bot && !p.left); }
-function closeRoom(room) { clearTimeout(room.timer); rooms.delete(room.code); }
+function closeRoom(room) { clearTimeout(room.timer); if (room.rematch) clearTimeout(room.rematch.timer); rooms.delete(room.code); }
 
 /* ---------- versturen ---------- */
 function send(ws, msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 function fail(ws, msg, code) { send(ws, { t: 'error', msg, code: code || '' }); }
 function lobbyMsg(room, p) {
   return { t: 'lobby', code: room.code, hostId: room.hostId, you: p.id, max: MAX_PLAYERS, min: MIN_PLAYERS,
-    players: room.players.map(q => ({ id: q.id, name: q.name, bot: q.bot, connected: q.connected })) };
+    players: room.players.map(q => ({ id: q.id, name: q.name, bot: q.bot, connected: q.connected })),
+    rematch: room.isRematch ? { chooser: (room.players.find(q => q.id === room.prevWinnerId) || {}).name || null } : null };
 }
 function broadcastLobby(room) { room.players.forEach(p => { if (!p.bot) send(p.ws, lobbyMsg(room, p)); }); }
 
@@ -94,7 +95,7 @@ function view(room, pi) {
   return {
     code: room.code, phase: g.phase, you: pi, host: room.players.findIndex(p => p.id === room.hostId),
     deck: g.deck.length, deckD: g.deck.length ? g.deck[g.deck.length - 1].d : 0,
-    draws: g.draws, start: g.start, cutMin: E.CUT_MIN,
+    draws: g.draws, start: g.start, cutter: g.cutter, cutMin: E.CUT_MIN,
     pile: g.pile.slice(-5), pileN: g.pile.length, top: E.topVal(g), burned: g.burned,
     dir: g.dir, turn: g.turn, sevenBy: g.sevenBy, endgame: g.endgame, winner: g.winner,
     log: g.log.slice(-6),
@@ -132,9 +133,13 @@ function broadcastState(room) {
 
 /* ---------- spelverloop ---------- */
 // Elk potje: eerst trekt iedereen een kaart (wie begint), dan coupeert die speler, dan wordt er gedeeld.
+// Eerste potje: opgooien wie begint. Rematch: de winnaar van het vorige potje coupeert en kiest (opgooien
+// alleen als die winnaar niet meer meedoet).
 function startGame(room) {
   const specs = room.players.map(p => ({ name: p.name, bot: p.bot }));
-  room.g = E.newGame(crypto.randomInt(2147483647), specs);
+  const chooser = room.isRematch ? room.players.findIndex(p => p.id === room.prevWinnerId) : -1;
+  room.g = E.newGame(crypto.randomInt(2147483647), specs, chooser >= 0 ? { cutter: chooser } : undefined);
+  room.isRematch = false;
   room.players.forEach(p => { p.ready = p.bot || p.left; });
   broadcastState(room);
   schedule(room, 0);
@@ -151,20 +156,20 @@ function maybeBegin(room) {
 function schedule(room, fxDur) {
   clearTimeout(room.timer); room.timer = null;
   const g = room.g; if (!g) return;
-  if (g.phase === 'over') { if (g.winner !== null) room.lastWinner = g.winner; return; }
+  if (g.phase === 'over') { room.lastWinnerId = g.winner !== null && room.players[g.winner] ? room.players[g.winner].id : null; return; }
   if (g.phase === 'draw') {
     // even tijd om de getrokken kaarten te laten zien
     // zelfde ritme als in de browser: elke kaart 0,45 s na de vorige, 1 s pauze tussen rondes
     let anim = 0;
     g.draws.forEach((round, ri) => { const n = new Set(round.map(r => r.pi)).size; anim += ri === g.draws.length - 1 ? (n - 1) * 450 + 1300 : n * 450 + 1000; });
-    room.timer = setTimeout(() => { if (room.g === g && E.toCut(g)) { broadcastState(room); schedule(room, 0); } }, FX_WAIT * anim + DRAW_SHOW);
+    room.timer = setTimeout(() => { if (room.g === g && E.afterDraw(g)) { broadcastState(room); schedule(room, 0); } }, FX_WAIT * anim + DRAW_SHOW);
     return;
   }
   if (g.phase === 'cut') {
-    const cutter = room.players[g.start];
+    const cutter = room.players[g.cutter];
     const auto = cutter.bot || cutter.left;
     if (!auto && cutter.connected) return;
-    room.timer = setTimeout(() => { if (room.g === g && g.phase === 'cut' && E.botCut(g)) { schedule(room, broadcastState(room)); } }, auto ? 1400 : AWAY_DELAY);
+    room.timer = setTimeout(() => { if (room.g === g && g.phase === 'cut' && E.botCut(g, !cutter.bot)) { schedule(room, broadcastState(room)); } }, auto ? 1800 : AWAY_DELAY);
     return;
   }
   if (g.phase === 'swap') {
@@ -187,6 +192,38 @@ function schedule(room, fxDur) {
   }, delay);
 }
 function seatOf(room, pid) { return room.players.findIndex(p => p.id === pid); }
+
+/* ---------- rematch ---------- */
+const REMATCH_WAIT = +process.env.REMATCH_WAIT || 30000;
+function activeHumans(room) { return room.players.filter(p => !p.bot && !p.left); }
+function rematchMsg(room) {
+  const r = room.rematch, hum = activeHumans(room);
+  return { t: 'rematch', from: r.fromName, left: Math.max(0, r.until - Date.now()),
+    yes: hum.filter(p => r.votes[p.id] === true).map(p => p.id), waiting: hum.filter(p => r.votes[p.id] === undefined).map(p => ({ id: p.id, name: p.name })) };
+}
+// Iemand gaat eruit tijdens de stemming: zijn plek blijft tot de stemming klaar is, zodat de stoelnummers kloppen.
+function kickOut(room, p, msg) {
+  p.left = true; p.ready = true;
+  if (p.ws) { const w = p.ws; w.room = null; p.ws = null; p.connected = false; if (msg) send(w, { t: 'kicked', msg }); }
+}
+function checkRematch(room) {
+  const r = room.rematch; if (!r) return;
+  const hum = activeHumans(room);
+  if (!hum.length) { clearTimeout(r.timer); room.rematch = null; return closeRoom(room); }
+  if (hum.every(p => r.votes[p.id] === true)) return finishRematch(room);
+  const m = rematchMsg(room);
+  room.players.forEach(p => { if (!p.bot) send(p.ws, m); });
+}
+function finishRematch(room) {
+  const r = room.rematch; clearTimeout(r.timer); room.rematch = null;
+  activeHumans(room).filter(p => r.votes[p.id] !== true).forEach(p => kickOut(room, p, 'Je hebt niet op tijd gereageerd op de rematch.'));
+  room.players = room.players.filter(p => p.bot || !p.left);
+  if (!room.players.some(p => !p.bot)) return closeRoom(room);
+  if (!room.players.some(p => p.id === room.hostId)) room.hostId = (room.players.find(p => !p.bot && p.connected) || room.players.find(p => !p.bot)).id;
+  clearTimeout(room.timer); room.g = null; room.isRematch = true; room.prevWinnerId = room.lastWinnerId;
+  room.players.forEach(p => { p.ready = false; });
+  broadcastLobby(room);
+}
 
 /* ---------- praten (push-to-talk) ----------
    Spraak gaat in kleine stukjes via deze server naar de andere spelers in de kamer.
@@ -240,6 +277,7 @@ const handlers = {
     p.ws = ws; p.connected = true; ws.room = room; ws.pid = p.id; room.emptySince = null;
     send(ws, { t: 'joined', code: room.code, pid: p.id, token: p.token });
     send(ws, { t: 'chatlog', items: room.chat });
+    if (room.rematch) send(ws, rematchMsg(room));
     if (!room.g) return broadcastLobby(room);
     broadcastState(room);
     schedule(room, 0);
@@ -263,8 +301,8 @@ const handlers = {
   cut(ws, m) {
     const room = ws.room; if (!room || !room.g || room.g.phase !== 'cut') return;
     const pi = seatOf(room, ws.pid);
-    if (pi !== room.g.start) return fail(ws, 'Alleen de speler met de hoogste kaart mag couperen.');
-    if (E.cutDeck(room.g, pi, +m.k, !!m.lower)) schedule(room, broadcastState(room));
+    if (pi !== room.g.cutter) return fail(ws, 'Alleen de winnaar van het vorige potje mag couperen.');
+    if (E.cutDeck(room.g, pi, +m.k, !!m.lower, m.start | 0, m.dir === -1 ? -1 : 1)) schedule(room, broadcastState(room));
   },
   // Plekken aan tafel (alleen in de lobby): de host husselt, iedereen kan zelf wisselen.
   shuffleSeats(ws) {
@@ -299,12 +337,23 @@ const handlers = {
     if (room.players.length < MIN_PLAYERS) return fail(ws, 'Je hebt minimaal 3 spelers nodig. Voeg een bot toe of wacht op meer spelers.');
     startGame(room);
   },
-  again(ws) {
-    const room = ws.room;
-    if (!room || !room.g || room.g.phase !== 'over') return;
-    const host = room.players.find(p => p.id === room.hostId);
-    if (room.hostId !== ws.pid && host && host.connected && !host.left) return;
-    startGame(room);
+  // Rematch: iemand vraagt het aan, iedereen moet akkoord geven. Wie weigert of niet reageert, gaat eruit.
+  rematch(ws) {
+    const room = ws.room; if (!room || !room.g || room.g.phase !== 'over') return;
+    const p = room.players.find(q => q.id === ws.pid); if (!p || p.left) return;
+    if (!room.rematch) {
+      room.rematch = { fromName: p.name, votes: {}, until: Date.now() + REMATCH_WAIT };
+      room.rematch.timer = setTimeout(() => { if (room.rematch && rooms.has(room.code)) finishRematch(room); }, REMATCH_WAIT);
+    }
+    room.rematch.votes[p.id] = true;
+    checkRematch(room);
+  },
+  rematchVote(ws, m) {
+    const room = ws.room; if (!room || !room.rematch) return;
+    const p = room.players.find(q => q.id === ws.pid); if (!p || p.left) return;
+    if (m.yes) room.rematch.votes[p.id] = true;
+    else { room.rematch.votes[p.id] = false; kickOut(room, p, 'Je doet niet mee met de rematch.'); }
+    checkRematch(room);
   },
   swap(ws, m) {
     const room = ws.room; if (!room || !room.g) return;
@@ -370,6 +419,7 @@ function drop(ws, leaving) {
     if (next) room.hostId = next.id;
   }
   if (!rest.some(q => q.connected)) room.emptySince = Date.now();
+  if (room.rematch) return checkRematch(room);
   if (!room.g) return broadcastLobby(room);
   if (!maybeBegin(room)) { broadcastState(room); schedule(room, 0); }
 }

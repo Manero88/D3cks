@@ -2,7 +2,7 @@
 'use strict';
 // Client van 3Decks. De server bepaalt het spel; deze code toont wat de server
 // stuurt (v = jouw zicht op het spel), stuurt jouw zetten terug en speelt de animaties af.
-var ws=null,online=false,sess=null,lob=null,v=null,screen='home';
+var rematch=null,rmTimer=null,ws=null,online=false,sess=null,lob=null,v=null,screen='home';
 var sel=null,picker=null,lastSrc=null,pickSrc=null,busy=false,confirmLeave=false,confirmT=null,errT=null,retry=null;
 var motion=!!(window.matchMedia&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var FX={2:'draai',7:'onder 7',8:'sla over',10:'brand'};
@@ -58,22 +58,29 @@ function show(s){
   screen=s;$('chatBtn').hidden=s==='home';$('talkBtn').hidden=s==='home';if(s==='home')closeSheets();['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
   if(s==='home')$('conn').hidden=true;
 }
-function goHome(){Talk.stop();talkingSeats={};chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
+function goHome(){clearBanners();rematch=null;clearInterval(rmTimer);$('rmModal').hidden=true;$('sumModal').hidden=true;Talk.stop();talkingSeats={};chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
 function setHash(code){try{history.replaceState(null,'',code?'#'+code:location.pathname+location.search);}catch(e){}}
 function onMsg(m){
   if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);}
-  else if(m.t==='lobby'){lob=m;v=null;show('lobby');renderLobby();}
+  else if(m.t==='lobby'){clearBanners();rematch=null;clearInterval(rmTimer);$('rmModal').hidden=true;$('sumModal').hidden=true;lob=m;v=null;show('lobby');renderLobby();}
   else if(m.t==='state'){
     var fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase!=='over'),pre={pile:$('pileBox').innerHTML,burned:fresh||!v?0:v.burned},wasMine=!!(v&&v.myMove);
     var pv=fresh?null:v;v=m.v;busy=false;show('game');
     if(fresh){sel=null;picker=null;cutStep=1;cutK=null;}
-    var doDeal=motion&&m.v.phase==='swap'&&pv&&pv.phase==='cut';
+    var doDeal=motion&&m.v.phase==='swap'&&pv&&(pv.phase==='cut'||pv.phase==='draw');
     stopDeal();if(doDeal)$('app').classList.add('predeal');
     render();runFx(pre,m.fx||[]);announce(pv,v,sfx(m.fx||[],wasMine));
     if(doDeal)dealFx(1050);
   }
   else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
   else if(m.t==='left')goHome();
+  else if(m.t==='rematch'){
+    rematch=m;var waitMe=m.waiting.some(function(w){return sess&&w.id===sess.pid;});
+    if(waitMe){$('rmText').textContent=m.from+' wil een rematch met dezelfde spelers. Doe je mee?';$('rmModal').hidden=false;startRmCount(m.left);}
+    else $('rmModal').hidden=true;
+    if(screen==='game'&&v)render();
+  }
+  else if(m.t==='kicked'){goHome();showErr(m.msg);}
   else if(m.t==='nudge'){
     bannerQ.unshift({big:'Hé, jij bent aan de beurt!',small:m.from+' port je.',hot:true});nextBanner();
     Snd.play('knock');try{if(navigator.vibrate)navigator.vibrate([180,90,180,90,260]);}catch(e){}
@@ -113,6 +120,7 @@ function renderLobby(){
     c+='<p class="sub">'+(n<lob.min?'Je hebt minimaal '+lob.min+' spelers nodig. Deel de code of voeg bots toe.':'Iedereen binnen? Dan kun je starten. Meedoen kan daarna niet meer.')+'</p>';
   }else c='<p class="waiting">Wachten tot '+esc(hostName)+' het spel start<i>.</i><i>.</i><i>.</i></p><p class="sub">Lees ondertussen de regels en tips door.</p>';
   c='<p class="sub">De volgorde hierboven is de volgorde aan tafel. Met Wissel ruil je van plek.</p>'+c;
+  if(lob.rematch)c='<p class="rmnote"><b>Rematch!</b> Wissel eventueel van plek. '+(lob.rematch.chooser?esc(lob.rematch.chooser)+' won het vorige potje en coupeert straks en kiest wie begint.':'De winnaar doet niet meer mee, dus jullie gooien weer op wie begint.')+'</p>'+c;
   $('lobCtl').innerHTML=c;
   applyTalking();
 }
@@ -190,11 +198,9 @@ function render(){
   $('game').setAttribute('data-phase',v.phase);
   var now,sub='',acts='',extra='';
   if(v.phase==='draw'||v.phase==='cut'){
-    var sw=v.start===you?'Jij':esc(v.players[v.start].name);
-    if(v.phase==='draw'){now='Wie begint?';sub='Iedereen trekt een kaart. De hoogste kaart begint en coupeert het deck.';}
-    else if(v.start===you){now='Jij mag couperen';sub=cutStep===2?'Welke stapel komt bovenop?':'Kies op welke hoogte je het deck snijdt.';extra=cutUI();}
-    else{now=sw+' coupeert het deck…';sub=sw+' had de hoogste kaart en begint straks.';}
-    extra=drawBoard()+extra;
+    if(v.phase==='draw'){now='Wie begint?';sub='Iedereen trekt een kaart. De hoogste kaart begint.';extra=drawBoard();}
+    else if(v.cutter===you){now='Jij won, jij coupeert';sub=cutStep===3?'Kies wie begint en welke kant we op spelen.':cutStep===2?'Welke stapel komt bovenop?':'Kies op welke hoogte je het deck snijdt.';extra=cutUI();}
+    else{var cn=esc(v.players[v.cutter].name);now=cn+' coupeert het deck…';sub=cn+' won het vorige potje en kiest wie begint en welke kant we op spelen.';}
   }else if(v.phase==='swap'){
     if(me.ready){
       var wait=v.players.filter(function(p){return!p.ready;}).map(function(p){return esc(p.name);});
@@ -206,8 +212,12 @@ function render(){
     }
   }else if(v.phase==='over'){
     now=v.winner===you?'Jij wint dit potje.':v.winner===null?'Niemand wint dit potje.':esc(v.players[v.winner].name)+' wint dit potje.';
-    if(v.host===you||v.host<0||v.players[v.host].away){sub='Volgend potje trekt iedereen weer een kaart.';acts='<button type="button" class="btn main" data-act="again">Nog een potje</button>';}
-    else sub='Wachten tot '+esc(v.players[v.host].name)+' een nieuw potje start.';
+    if(!rematch){sub='Zin in nog een potje met dezelfde spelers? Vraag een rematch aan.';acts='<button type="button" class="btn main" data-act="rematch">Rematch</button>';}
+    else{
+      var mineYes=rematch.yes.indexOf(sess&&sess.pid)>=0,wt=rematch.waiting.map(function(w){return esc(w.name);});
+      sub=esc(rematch.from)+' wil een rematch. '+(wt.length?'Wachten op '+wt.join(', ')+'.':'');
+      if(!mineYes)acts='<button type="button" class="btn main" data-act="rmYes">Ik doe mee</button><button type="button" class="btn" data-act="rmNo">Ik stop</button>';
+    }
     acts+='<button type="button" class="btn" data-act="summary">Samenvatting</button>';
   }else if(myTurn){
     if(picker){now='Kies de waarde van je '+(picker.card.k==='joker'?'joker':'scorekaart')+'.';sub=req();}
@@ -267,6 +277,7 @@ function drawBoard(){
 function cutInfo(n){return cutK+' kaarten onder de snede, '+(n-cutK)+' erboven.';}
 function cutUI(){
   var n=v.deck,mn=v.cutMin||15;if(cutK===null||cutK<mn||cutK>n-mn)cutK=Math.round(n/2);
+  if(cutStep===3)return cutStep3();
   if(cutStep===1)return '<div class="cutui"><div class="cutrow"><div class="cstack tall"><span class="cmark" id="cutMark" style="bottom:'+(cutK/n*100).toFixed(1)+'%"></span></div>'+
     '<div class="cutctl"><label class="field" for="cutRange">Hoogte van de snede<input type="range" id="cutRange" min="'+mn+'" max="'+(n-mn)+'" value="'+cutK+'"></label>'+
     '<p class="sub" id="cutInfo">'+cutInfo(n)+'</p><button type="button" class="btn main" data-act="cutHere">Hier snijden</button></div></div></div>';
@@ -275,6 +286,20 @@ function cutUI(){
     '<button type="button" class="cpile" data-act="cutPick" data-lower="0"><span class="cstack" style="height:'+Math.max(16,up/n*150).toFixed(0)+'px"></span><span>Bovenste deel<br><b>'+up+' kaarten</b></span></button>'+
     '<button type="button" class="cpile" data-act="cutPick" data-lower="1"><span class="cstack" style="height:'+Math.max(16,cutK/n*150).toFixed(0)+'px"></span><span>Onderste deel<br><b>'+cutK+' kaarten</b></span></button>'+
     '</div><p class="sub">Tik de stapel aan die bovenop komt.</p><div><button type="button" class="btn small" data-act="cutBack">Terug</button></div></div>';
+}
+// Stap 3 (alleen bij een rematch): wie begint en welke richting. Het delen begint ook bij die speler.
+var cutLower=false,cutStart=null,cutDirSel=1;
+function cutStep3(){
+  var n=v.players.length;if(cutStart===null)cutStart=v.cutter;
+  var order=[],i=cutStart;for(var k=0;k<n;k++){order.push(i===v.you?'Jij':esc(v.players[i].name));i=(i+cutDirSel+n)%n;}
+  var h='<div class="cutui"><span class="zl">Wie begint?</span><div class="pickrow">';
+  v.players.forEach(function(p,i){h+='<button type="button" class="qchip'+(i===cutStart?' on':'')+'" data-act="cutStart" data-i="'+i+'" aria-pressed="'+(i===cutStart)+'">'+(i===v.you?'Jij':esc(p.name))+'</button>';});
+  h+='</div><span class="zl">Richting</span><div class="pickrow">'+
+    '<button type="button" class="qchip'+(cutDirSel===1?' on':'')+'" data-act="cutDir" data-d="1" aria-pressed="'+(cutDirSel===1)+'">↻ Met de klok mee</button>'+
+    '<button type="button" class="qchip'+(cutDirSel===-1?' on':'')+'" data-act="cutDir" data-d="-1" aria-pressed="'+(cutDirSel===-1)+'">↺ Tegen de klok in</button></div>'+
+    '<p class="sub">Volgorde: '+order.join(' → ')+'</p>'+
+    '<div class="actions"><button type="button" class="btn main" data-act="cutGo">Delen</button><button type="button" class="btn small" data-act="cutBack2">Terug</button></div></div>';
+  return h;
 }
 document.addEventListener('input',function(e){
   if(e.target.id!=='cutRange'||!v)return;cutK=+e.target.value;
@@ -374,20 +399,30 @@ function openSummary(){
   var wn=v.winner===null?'Niemand wint dit potje':(v.winner===v.you?'Jij wint!':esc(v.players[v.winner].name)+' wint!');
   $('sumBody').innerHTML='<div class="sumwin">'+CROWN+'<span>'+wn+'</span></div><div class="awards">'+aw+'</div>'+tb;
   var host=v.host===v.you||v.host<0||v.players[v.host].away;
-  $('sumActs').innerHTML=(host?'<button type="button" class="btn main" data-act="again">Nog een potje</button>':'')+'<button type="button" class="btn" data-act="sumClose">Sluiten</button>';
+  $('sumActs').innerHTML=(!rematch?'<button type="button" class="btn main" data-act="rematch">Rematch</button>':'')+'<button type="button" class="btn" data-act="sumClose">Sluiten</button>';
   closeSheets();$('sumModal').hidden=false;
+}
+
+/* ---------- rematch-vraag ---------- */
+function startRmCount(ms){
+  clearInterval(rmTimer);var end=Date.now()+ms;
+  var tick=function(){var s=Math.max(0,Math.ceil((end-Date.now())/1000));$('rmCount').textContent=s?'Nog '+s+' seconden om te kiezen.':'';if(!s)clearInterval(rmTimer);};
+  tick();rmTimer=setInterval(tick,500);
 }
 
 /* ---------- grote meldingen ---------- */
 function cardsLeft(p,vv){return(vv||v).deck>0?99:p.n+p.open.length+p.blind.length;}
 function lastOne(p){return v.phase==='play'&&!p.out&&cardsLeft(p)===1;}
 var bannerQ=[],bannerBusy=false;
+// Oude meldingen uit een vorig potje weghalen (bij lobby, rematch of terug naar start).
+function clearBanners(){bannerQ=[];bannerBusy=false;[].forEach.call(document.querySelectorAll('#fx .banner'),function(b){b.getAnimations&&b.getAnimations().forEach(function(a){a.onfinish=null;a.cancel();});b.remove();});}
 // Vergelijkt het vorige en nieuwe spelbeeld en zet meldingen klaar voor na de animaties.
 function announce(pv,nv,delay){
   if(!pv)return;
   if(pv.phase==='play'&&nv.phase==='over')setTimeout(openSummary,Math.max(0,delay||0)+2600);
   var q=[];
-  if(pv.phase==='draw'&&nv.phase==='cut'){var mine=nv.start===nv.you,wn=nv.players[nv.start].name;q.push({big:mine?'Jij begint!':wn+' begint!',small:'Hoogste kaart. '+(mine?'Jij coupeert':wn+' coupeert')+' het deck.'});}
+  if((pv.phase==='draw'||pv.phase==='cut')&&nv.phase==='swap'){var mine=nv.start===nv.you,wn=nv.players[nv.start].name;
+    q.push({big:mine?'Jij begint!':wn+' begint!',small:pv.phase==='draw'?'Hoogste kaart.':'Gekozen door '+(nv.cutter===nv.you?'jou':nv.players[nv.cutter].name)+', '+(nv.dir===1?'met de klok mee.':'tegen de klok in.')});}
   if(!pv.endgame&&nv.endgame)q.push({big:'Endgame!',small:'Het deck is leeg. Speel je hand leeg, dan je tafelkaarten.',hot:true});
   nv.players.forEach(function(p,i){
     var o=pv.players[i];if(!o||p.out||nv.phase!=='play')return;
@@ -876,7 +911,14 @@ function act(d,el){
     case'shuffleSeats':send({t:'shuffleSeats'});return;
     case'cutHere':cutStep=2;break;
     case'cutBack':cutStep=1;break;
-    case'cutPick':if(send({t:'cut',k:cutK,lower:d.lower==='1'})){cutStep=1;cutK=null;}break;
+    case'cutPick':cutLower=d.lower==='1';cutStep=3;break;
+    case'cutBack2':cutStep=2;break;
+    case'cutStart':cutStart=+d.i;break;
+    case'cutDir':cutDirSel=d.d==='-1'?-1:1;break;
+    case'cutGo':if(send({t:'cut',k:cutK,lower:cutLower,start:cutStart===null?v.cutter:cutStart,dir:cutDirSel})){cutStep=1;cutK=null;cutStart=null;cutDirSel=1;}break;
+    case'rematch':$('sumModal').hidden=true;send({t:'rematch'});return;
+    case'rmYes':send({t:'rematchVote',yes:true});$('rmModal').hidden=true;return;
+    case'rmNo':send({t:'rematchVote',yes:false});$('rmModal').hidden=true;return;
     case'micClose':closeSheets();return;
     case'micCopy':
       var url=location.origin+'/'+(sess?'#'+sess.code:'');
@@ -915,7 +957,7 @@ function act(d,el){
     case'cancel':picker=null;break;
     case'pickup':if(!busy&&send({t:'pickup'}))busy=true;break;
     case'ready':send({t:'ready'});sel=null;break;
-    case'again':$('sumModal').hidden=true;send({t:'again'});break;
+    case'again':break;
     case'sound':Snd.toggle();sndLabel();if(Snd.isOn())Snd.play('card',60);return;
   }
   if(screen==='game'&&v)render();

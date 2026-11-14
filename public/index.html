@@ -222,6 +222,12 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .nudgebtn:focus-visible{outline:3px solid var(--ink);outline-offset:3px;border-radius:4px}
 .shake{animation:shk .5s ease-in-out 2}
 @keyframes shk{20%{translate:-8px 0}40%{translate:8px 0}60%{translate:-6px 0}80%{translate:4px 0}}
+.rmbox{width:min(420px,100%);align-items:flex-start;text-align:left}
+.rmbox p{margin:0;font-size:16px}
+.rmtitle{font:800 30px/1 var(--font-d)}
+.rmnote{margin:0;background:color-mix(in srgb,var(--ok) 16%,var(--panel));border:1.5px solid var(--ok);border-radius:12px;padding:10px 12px}
+.pickrow{display:flex;flex-wrap:wrap;gap:6px}
+.qchip.on{background:var(--ink);color:var(--table);border-color:var(--ink)}
 .michelp{display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.4}
 .michelp p{margin:0} .michelp ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .chatlog{list-style:none;margin:0;padding:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px;max-height:240px}
@@ -482,7 +488,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
       <div class="col">
         <h2>Regels</h2>
         <ul class="rules">
-        <li>Voor elk potje trekt iedereen een kaart. De hoogste kaart begint en coupeert het deck.</li>
+        <li>Bij het eerste potje trekt iedereen een kaart: de hoogste begint. Bij een rematch coupeert de winnaar van het vorige potje en kiest hij wie begint en welke kant het opgaat.</li>
         <li>Speel één kaart die gelijk of hoger is dan de bovenste. Kun je spelen, dan moet je. Kun je niet, dan pak je de stapel.</li>
         <li><b>2</b> mag overal op, draait de richting om en geeft de volgende een vrije zet.</li>
         <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
@@ -525,7 +531,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
     <details>
       <summary>Regels in het kort</summary>
       <ul>
-        <li>Voor elk potje trekt iedereen een kaart. De hoogste kaart begint en coupeert het deck.</li>
+        <li>Bij het eerste potje trekt iedereen een kaart: de hoogste begint. Bij een rematch coupeert de winnaar van het vorige potje en kiest hij wie begint en welke kant het opgaat.</li>
         <li>Speel één kaart die gelijk of hoger is dan de bovenste. Kun je spelen, dan moet je. Kun je niet, dan pak je de stapel.</li>
         <li><b>2</b> mag overal op, draait de richting om en geeft de volgende een vrije zet.</li>
         <li><b>7</b> mag alleen op 7 of lager. Daarna speelt iedereen onder de 7, tot de 7-speler weer aan de beurt is.</li>
@@ -548,6 +554,14 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
   <div class="quick" id="quickRow"></div>
   <form class="chatform" id="chatForm"><input id="chatInput" maxlength="80" autocomplete="off" placeholder="Of typ zelf iets" aria-label="Bericht"><button class="btn" type="submit">Stuur</button></form>
 </section>
+<div class="modalbg" id="rmModal" hidden>
+  <section class="modal rmbox" role="alertdialog" aria-modal="true" aria-labelledby="rmTitle">
+    <strong id="rmTitle" class="rmtitle">Rematch?</strong>
+    <p id="rmText"></p>
+    <p class="sub" id="rmCount"></p>
+    <div class="actions"><button type="button" class="btn main" data-act="rmYes">Ik doe mee</button><button type="button" class="btn" data-act="rmNo">Ik stop</button></div>
+  </section>
+</div>
 <div class="modalbg" id="sumModal" hidden>
   <section class="modal" role="dialog" aria-modal="true" aria-labelledby="sumTitle">
     <div class="sheet-h"><strong id="sumTitle">Samenvatting</strong><button class="btn small" type="button" data-act="sumClose">Sluiten</button></div>
