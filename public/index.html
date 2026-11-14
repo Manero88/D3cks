@@ -147,8 +147,9 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .armfx{position:fixed;inset:0;pointer-events:none;z-index:45}
 .armfx .hshadow{fill:#000}
 .scratchfx{position:fixed;inset:0;pointer-events:none;z-index:44}
-.scratchfx .g1 path{fill:none;stroke:color-mix(in srgb,#000 45%,transparent);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
-.scratchfx .g2 path{fill:none;stroke:color-mix(in srgb,var(--on-felt) 60%,transparent);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+/* tijgerstrepen: zelfde kleur als het vilt, maar donkerder en half doorzichtig */
+.scratchfx .g1 path{fill:color-mix(in srgb,var(--felt) 45%,#000);fill-opacity:.55;stroke:none}
+.scratchfx .g2{display:none}
 .slam{position:fixed;width:70px;height:26px;border-radius:50%;pointer-events:none;z-index:44;border:3px solid color-mix(in srgb,var(--on-felt) 55%,transparent)}
 .armfx .a1{fill:none;stroke:var(--arm-edge);stroke-width:19;stroke-linecap:round}
 .armfx .a2{fill:none;stroke:var(--arm);stroke-width:13;stroke-linecap:round}

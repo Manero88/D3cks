@@ -464,7 +464,7 @@ function stretchArm(S,P,ghost){
   box.innerHTML='<svg width="100%" height="100%"><ellipse class="hshadow" rx="17" ry="6"/><path class="a1"/><path class="a2"/><g class="hand"><g class="fing"><path d="M6 -9 L22 -15 M10 -3 L27 -5 M10 3 L27 5 M6 9 L22 15"/></g><path class="thumb" d="M0 -11 L6 -22"/><circle r="12"/></g></svg>';
   $('fx').appendChild(sc);$('fx').appendChild(box);
   var a1=box.querySelector('.a1'),a2=box.querySelector('.a2'),hand=box.querySelector('.hand'),fing=box.querySelector('.fing'),shadow=box.querySelector('.hshadow');
-  var g1=sc.querySelector('.g1'),g2=sc.querySelector('.g2'),OFF=[-10,-3.5,3.5,10],trails=OFF.map(function(){return[];}),p1=[],p2=[];
+  var g1=sc.querySelector('.g1'),g2=sc.querySelector('.g2'),OFF=[-17,-5,6,18],WID=[9,13,12,8],trails=OFF.map(function(){return[];}),p1=[],p2=[],walked=0,lastE=null;
   OFF.forEach(function(){var x=document.createElementNS('http://www.w3.org/2000/svg','path'),y=document.createElementNS('http://www.w3.org/2000/svg','path');g1.appendChild(x);g2.appendChild(y);p1.push(x);p2.push(y);});
   var dx=P.x-S.x,dy=P.y-S.y,len=Math.sqrt(dx*dx+dy*dy)||1,px=-dy/len,py=dx/len,D=1150,t0=null,slammed=false;
   function ease(x){return 1-Math.pow(1-x,3);}function easeIn(x){return x*x*x;}
@@ -484,14 +484,28 @@ function stretchArm(S,P,ghost){
     fing.setAttribute('transform',u>.4?'scale(.5 .85)':'');
     shadow.setAttribute('cx',ex);shadow.setAttribute('cy',ey+6);shadow.setAttribute('opacity',String(.12+.25*(1+lift/34)));
     if(u>.48){
-      trails.forEach(function(tr,i){tr.push((ex+px*OFF[i]+(Math.random()-.5)*1.4).toFixed(1)+' '+(ey+py*OFF[i]+(Math.random()-.5)*1.4).toFixed(1));
-        var dd='M'+tr.join(' L');p1[i].setAttribute('d',dd);p2[i].setAttribute('d',dd);});
+      // Tijgerstrepen: brede, golvende banen die in het midden het dikst zijn en aan de uiteinden spits toelopen.
+      if(lastE)walked+=Math.hypot(ex-lastE[0],ey-lastE[1]);lastE=[ex,ey];
+      trails.forEach(function(tr,i){
+        var wave=Math.sin(walked*.045+i*1.7)*4;
+        tr.push({x:ex+px*(OFF[i]+wave),y:ey+py*(OFF[i]+wave),r:.75+Math.random()*.5});
+        p1[i].setAttribute('d',tigerPath(tr,WID[i]));
+      });
       if(ghost){var k3=(u-.48)/.52;ghost.style.transform='translate('+(ex-P.x)+'px,'+(ey-P.y)+'px) scale('+(1-.55*k3)+')';ghost.style.opacity=String(1-k3*.8);}
     }
     if(u<1)requestAnimationFrame(frame);
     else{box.remove();var f=sc.animate?sc.animate([{opacity:1},{opacity:1,offset:.25},{opacity:0}],{duration:1100,fill:'both'}):null;if(f)f.onfinish=function(){sc.remove();};else setTimeout(function(){sc.remove();},800);}
   }
   requestAnimationFrame(frame);
+}
+function tigerPath(tr,maxW){
+  var n=tr.length;if(n<2)return'';var L=[],R=[];
+  for(var k=0;k<n;k++){
+    var a=tr[Math.max(0,k-1)],b=tr[Math.min(n-1,k+1)],dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1,nx=-dy/l,ny=dx/l;
+    var t=n>1?k/(n-1):0,w=maxW*Math.pow(Math.sin(Math.PI*t),.6)*tr[k].r/2;
+    L.push((tr[k].x+nx*w).toFixed(1)+' '+(tr[k].y+ny*w).toFixed(1));R.push((tr[k].x-nx*w).toFixed(1)+' '+(tr[k].y-ny*w).toFixed(1));
+  }
+  return'M'+L.join(' L')+' L'+R.reverse().join(' L')+'Z';
 }
 // Stofwolkje waar de hand op tafel neerkomt.
 function impact(p){
@@ -628,7 +642,19 @@ var Snd=(function(){
     seven:function(c,t){tone(c,t,{type:'triangle',f:880,f2:196,dur:.45,g:.22});},
     eight:function(c,t){[520,780,1040].forEach(function(f,i){tone(c,t+i*.09,{type:'square',f:f,dur:.07,g:.07});});},
     ace:function(c,t){noise(c,t,{type:'lowpass',f:400,f2:150,dur:.2,g:.2});tone(c,t+.25,{f:220,f2:660,dur:.5,a:.05,g:.22});tone(c,t+.75,{type:'triangle',f:990,dur:.14,g:.15});},
-    joker:function(c,t){[784,988,1175,1568].forEach(function(f,i){tone(c,t+i*.09,{f:f,dur:.35,g:.12});});},
+    // Eigen gemeen schurkenlachje ('hehe… HA-HA-HA-HA-ha'): zaagtoon door klinkerfilters, met adem ervoor.
+    joker:function(c,t){
+      var syl=[[.0,170,.13,.5],[.2,165,.12,.45],[.48,300,.1,.8],[.6,285,.1,.85],[.72,270,.1,.85],[.84,255,.1,.8],[.96,235,.11,.75],[1.1,205,.16,.6],[1.32,175,.26,.45]];
+      syl.forEach(function(s,i){
+        var st=t+s[0],f0=s[1],d=s[2],o=c.createOscillator(),g=c.createGain(),f1=c.createBiquadFilter(),f2=c.createBiquadFilter(),mx=c.createGain();
+        o.type='sawtooth';o.frequency.setValueAtTime(f0*1.08,st);o.frequency.exponentialRampToValueAtTime(f0*.82,st+d);
+        var lfo=c.createOscillator(),lg=c.createGain();lfo.frequency.value=28;lg.gain.value=f0*.04;lfo.connect(lg);lg.connect(o.frequency);
+        f1.type='bandpass';f1.frequency.value=i<2?520:780;f1.Q.value=5;f2.type='bandpass';f2.frequency.value=i<2?1900:1250;f2.Q.value=7;
+        o.connect(f1);o.connect(f2);f1.connect(mx);f2.connect(mx);mx.gain.value=1;mx.connect(g);g.connect(master);
+        env(g,st,.012,d,s[3]*.9);o.start(st);o.stop(st+d+.05);lfo.start(st);lfo.stop(st+d+.05);
+        noise(c,st-.025,{f:1600,dur:.045,q:1,g:.18*s[3]});
+      });
+    },
     junk:function(c,t){noise(c,t,{f:2600,f2:1800,dur:.35,q:4,g:.25});noise(c,t+.4,{f:3200,dur:.12,q:5,g:.2});tone(c,t+.1,{f:600,f2:240,dur:.4,g:.1});},
     pick:function(c,t){noise(c,t,{type:'lowpass',f:700,f2:200,dur:.35,g:.4});tone(c,t,{f:110,f2:60,dur:.25,g:.25});},
     win:function(c,t){[523,659,784,1047].forEach(function(f,i){tone(c,t+i*.12,{type:'triangle',f:f,dur:i===3?.6:.2,g:.22});});},
