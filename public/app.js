@@ -604,6 +604,8 @@ function runFx(pre,evs){
 var Snd=(function(){
   var ctx=null,master=null,nb=null,on=load('d3cks-sound')!=='0';
   function ac(){
+    // iPhone: zonder dit zwijgt Web Audio als de stille-modus-schakelaar aan staat (Safari 16.4+)
+    try{if(navigator.audioSession&&navigator.audioSession.type!=='play-and-record')navigator.audioSession.type='playback';}catch(e){}
     if(!ctx){var C=window.AudioContext||window.webkitAudioContext;if(!C)return null;try{ctx=new C();}catch(e){return null;}
       master=ctx.createGain();master.gain.value=.55;master.connect(ctx.destination);}
     if(ctx.state==='suspended')ctx.resume();return ctx;
@@ -756,6 +758,7 @@ var Talk=(function(){
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){micHelp('unsupported');return;}
     if(!online){showErr('Geen verbinding met de server.');return;}
     talking=true;clearTimeout(stopT);ui(true);
+    try{if(navigator.audioSession)navigator.audioSession.type='play-and-record';}catch(e){}
     if(!actx){var C=window.AudioContext||window.webkitAudioContext;actx=new C();}
     if(actx.state==='suspended')actx.resume();
     mic().then(function(s){
@@ -778,7 +781,7 @@ var Talk=(function(){
     try{if(srcN)srcN.disconnect();if(proc){proc.onaudioprocess=null;proc.disconnect();}}catch(e){}
     srcN=proc=null;if(online)send({t:'ptt',on:false});Snd.play('pttOff');
     // microfoon nog even openhouden, zodat de volgende keer meteen werkt; daarna dicht
-    stopT=setTimeout(function(){if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}},30000);
+    stopT=setTimeout(function(){if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}},30000);
   }
   function play(buf){
     var a=new Uint8Array(buf);if(a.length<3)return;
