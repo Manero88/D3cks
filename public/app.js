@@ -174,17 +174,30 @@ function render(){
   if(v.endgame)ch+='<span class="chip hot"><b>Endgame</b></span>';
   $('chips').innerHTML=ch;
 
+  // Vanaf 3 tegenstanders (op de telefoon vanaf 2) compacte, even grote tegels in speelvolgorde.
+  var nOpp=n-1,compact=nOpp>=3||((window.innerWidth||1000)<=640&&nOpp>=2),nx=v.phase==='play'?nextSeat():-1;
   var oh='';
   for(var k=1;k<n;k++){
     var i=(you+k)%n,p=v.players[i],turn=v.phase==='play'&&v.turn===i,fan='',m=(p.backs.length-1)/2;
     var rh='';if(p.cards&&p.cards.length){p.cards.slice().sort(function(a,b){return(a.k==='n'?a.v:99)-(b.k==='n'?b.v:99);}).forEach(function(c,j){rh+=face(c,{cls:'revealed',attr:' style="--rd:'+(.5+j*.04).toFixed(2)+'s"'});});}
     else p.backs.forEach(function(d,j){fan+=back(d,'',' style="--r:'+((j-m)*8).toFixed(1)+'deg"');});
     var where=p.out?'Ligt uit het spel':v.phase==='swap'?(p.ready?'Klaar':'Legt kaarten goed'):v.endgame&&p.zone==='open'?'Speelt open kaarten':v.endgame&&p.zone==='blind'?'Speelt blinde kaarten':'';
-    oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h">'+(turn&&!p.bot&&!p.away&&v.phase==='play'?'<button type="button" class="nudgebtn" data-act="nudge" title="Tik om '+esc(p.name)+' te porren" aria-label="'+esc(p.name)+' porren">'+esc(p.name)+'<span class="nh">por</span></button>':'<span class="nm">'+esc(p.name)+'</span>')+(p.bot?'<span class="tag">bot · '+(LEVEL_NL[p.level]||'normaal')+'</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
+    var nameH=turn&&!p.bot&&!p.away&&v.phase==='play'?'<button type="button" class="nudgebtn" data-act="nudge" title="Tik om '+esc(p.name)+' te porren" aria-label="'+esc(p.name)+' porren">'+esc(p.name)+'<span class="nh">por</span></button>':'<span class="nm">'+esc(p.name)+'</span>';
+    if(compact){
+      var chips=(turn?'<span class="pill">aan zet</span>':'')+(i===nx&&!turn?'<span class="pill nextp">volgende</span>':'')+(lastOne(p)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===i?'<span class="pill">winnaar</span>':'')+(p.away?'<span class="tag">weg</span>':'')+(where?'<span class="tag">'+where+'</span>':'');
+      var stack=rh?'':'<span class="hstack" title="'+p.n+' kaarten in hand" aria-label="'+p.n+' kaarten in hand">'+(p.backs.length?back(p.backs[0]):ghost())+'<b>'+p.n+'</b></span>';
+      oh+='<div class="seat ctile'+(turn?' turn':'')+(i===nx&&!turn?' next':'')+(p.out?' out':'')+'" data-seat="'+i+'"'+(p.bot?' title="Bot, '+(LEVEL_NL[p.level]||'normaal')+'"':'')+'>'+
+        '<div class="seat-h">'+nameH+(p.bot?'<span class="tag">bot</span>':'')+stack+'</div>'+
+        '<div class="seat-row sm"><div class="tbl">'+slotsHtml(p,false,st)+'</div></div>'+(rh?'<div class="rhand sm" aria-label="Hand van '+esc(p.name)+'">'+rh+'</div>':'')+
+        (chips?'<div class="cchips">'+chips+'</div>':'')+'</div>';
+      continue;
+    }
+    oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h">'+nameH+(p.bot?'<span class="tag">bot · '+(LEVEL_NL[p.level]||'normaal')+'</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
       (turn?'<span class="pill">aan de beurt</span>':'')+(lastOne(p)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===i?'<span class="pill">winnaar</span>':'')+'</div>'+
       '<div class="seat-row sm"><div class="tbl">'+slotsHtml(p,false,st)+'</div><div class="handinfo">'+(rh?'':'<span class="fan">'+fan+'</span>')+'<span><b>'+p.n+'</b> in hand</span></div></div>'+(rh?'<div class="rhand sm" aria-label="Hand van '+esc(p.name)+'">'+rh+'</div>':'')+
       (where?'<div class="tag">'+where+'</div>':'')+'</div>';
   }
+  $('opps').className='opps'+(compact?' compact n'+nOpp:'');
   $('opps').innerHTML=oh;
 
   var ph='',pn=v.pileN,sh=v.pile;
@@ -341,7 +354,7 @@ function dealFx(delay){
     var sl=seat.querySelectorAll('.slots .slot')[j];
     if(zone==='blind')return sl&&sl.querySelector('.card.back');
     if(zone==='open')return sl&&sl.querySelector('.card:not(.back)');
-    return seat.querySelectorAll('.fan .card')[j];
+    return seat.querySelectorAll('.fan .card')[j]||seat.querySelector('.hstack .card');
   }
   ['blind','open','hand'].forEach(function(zone){for(var j=0;j<3;j++)order.forEach(function(pi){steps.push({pi:pi,zone:zone,j:j});});});
   var total=steps.length,gap=Math.max(55,Math.min(120,5200/total)),left=v.deck+total;
@@ -454,7 +467,7 @@ function seatEl(pi){return pi===v.you?$('me'):$('opps').querySelector('[data-sea
 function seatSrc(pi,from){
   if(pi===v.you)return lastSrc||rectOf($('me'));
   var seat=seatEl(pi);if(!seat)return rectOf($('opps'));
-  return rectOf(seat.querySelector(from==='hand'?'.fan':'.slots'))||rectOf(seat);
+  return rectOf(seat.querySelector(from==='hand'?'.fan,.hstack':'.slots'))||rectOf(seat);
 }
 function fly(c,as,from,to,o){
   var w=document.createElement('div');w.className='fly';
@@ -637,7 +650,7 @@ function runFx(pre,evs){
       ev.cards.forEach(function(c,i){
         var to,el=null,solo=false,cw;
         if(mine){el=$('me').querySelector('[data-ids*=",'+c.id+',"]');solo=!!el&&el.getAttribute('data-ids').split(',').length===3;to=rectOf(el)||rectOf($('me'));cw=el?to.width:60;}
-        else{var seat=seatEl(ev.pi),fr=rectOf(seat&&seat.querySelector('.fan'))||rectOf(seat)||deckR;to={left:fr.left+fr.width/2-17,top:fr.top+fr.height/2-24,width:34,height:48};cw=34;}
+        else{var seat=seatEl(ev.pi),fr=rectOf(seat&&seat.querySelector('.fan,.hstack'))||rectOf(seat)||deckR;to={left:fr.left+fr.width/2-17,top:fr.top+fr.height/2-24,width:34,height:48};cw=34;}
         if(solo)el.style.visibility='hidden';
         fly(c,null,deckR,to,{delay:t+i*90,dur:340,flip:mine,backOnly:!mine,cw:cw,s:Math.max(.5,deckR.width/to.width),rot:.01,done:function(){if(solo)el.style.visibility='';}});
       });
