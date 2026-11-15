@@ -45,7 +45,7 @@ function jit(id,top){var r=top?((id*37)%9)-4:((id*37)%25)-12,x=((id*53)%15)-7,y=
 function connect(){
   clearTimeout(retry);
   ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);ws.binaryType='arraybuffer';
-  ws.onopen=function(){online=true;$('conn').hidden=true;if(sess)send({t:'rejoin',code:sess.code,pid:sess.pid,token:sess.token});};
+  ws.onopen=function(){online=true;$('conn').hidden=true;if(sess)send({t:'rejoin',code:sess.code,pid:sess.pid,token:sess.token,soft:!!sess.soft});};
   ws.onmessage=function(e){if(typeof e.data!=='string'){Talk.play(e.data);return;}var m;try{m=JSON.parse(e.data);}catch(x){return;}onMsg(m);};
   ws.onclose=function(){online=false;busy=false;if(screen!=='home')$('conn').hidden=false;retry=setTimeout(connect,1500);};
   ws.onerror=function(){};
@@ -59,10 +59,22 @@ function show(s){
   screen=s;$('chatBtn').hidden=s==='home';$('talkBtn').hidden=s==='home';if(s==='home')closeSheets();['home','lobby','game'].forEach(function(k){$(k).hidden=k!==s;});
   if(s==='home')$('conn').hidden=true;
 }
-function goHome(){clearBanners();rematch=null;clearInterval(rmTimer);$('rmModal').hidden=true;$('sumModal').hidden=true;Talk.stop();talkingSeats={};chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
+/* ---------- terugkeren na wegvallen of per ongeluk 'Verlaten' ----------
+   De laatste plek wordt in deze browser onthouden (6 uur). Bij het openen van de app ga je er vanzelf
+   heen, tenzij die plek nog in een ander tabblad actief is. Na 'Verlaten' verschijnt een knop. */
+var LAST_MS=6*3600*1000,seatCode=null;
+function getLast(){try{var l=JSON.parse(load('d3cks-last')||'null');return l&&Date.now()-l.ts<LAST_MS?l:null;}catch(e){return null;}}
+function saveLast(s,left){store('d3cks-last',JSON.stringify({code:s.code,pid:s.pid,token:s.token,left:!!left,ts:Date.now()}));}
+function showBack(){var l=getLast(),b=$('backBtn');if(!b)return;b.hidden=!l;if(l)b.textContent='Terug naar je spel ('+l.code+')';}
+function showSeats(m){
+  seatCode=m.code;
+  $('seatList').innerHTML=m.seats.map(function(s){return'<button type="button" class="qchip" data-act="takeSeat" data-id="'+esc(s.id)+'">Ik ben '+esc(s.name)+'</button>';}).join('');
+  $('seatSheet').hidden=false;
+}
+function goHome(){setTimeout(showBack,0);clearBanners();rematch=null;clearInterval(rmTimer);$('rmModal').hidden=true;$('sumModal').hidden=true;Talk.stop();talkingSeats={};chatItems=[];unread=0;closeSheets();sess=null;lob=null;v=null;storeTab(null);setHash('');document.title='3Decks';show('home');}
 function setHash(code){try{history.replaceState(null,'',code?'#'+code:location.pathname+location.search);}catch(e){}}
 function onMsg(m){
-  if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);}
+  if(m.t==='joined'){sess={code:m.code,pid:m.pid,token:m.token};storeTab(JSON.stringify(sess));setHash(m.code);saveLast(sess,false);$('seatSheet').hidden=true;}
   else if(m.t==='lobby'){clearBanners();rematch=null;clearInterval(rmTimer);$('rmModal').hidden=true;$('sumModal').hidden=true;lob=m;v=null;show('lobby');renderLobby();}
   else if(m.t==='state'){
     var fresh=screen!=='game'||!v||(v.phase==='over'&&m.v.phase!=='over'),pre={pile:$('pileBox').innerHTML,burned:fresh||!v?0:v.burned},wasMine=!!(v&&v.myMove);
@@ -73,7 +85,12 @@ function onMsg(m){
     render();runFx(pre,m.fx||[]);announce(pv,v,sfx(m.fx||[],wasMine));
     if(doDeal)dealFx(1050);
   }
-  else if(m.t==='error'){busy=false;if(m.code==='gone'){var was=screen;goHome();if(was==='home')return;}showErr(m.msg);}
+  else if(m.t==='error'){busy=false;
+    if(m.code==='busy'){sess=null;storeTab(null);showBack();return;}
+    if(m.code==='gone'){store('d3cks-last',null);var was=screen;goHome();if(was==='home'){showBack();return;}}
+    showErr(m.msg);}
+  else if(m.t==='seats'){showSeats(m);}
+  else if(m.t==='back'){toast(m.name+' is terug',rectOf($('opps'))||{left:100,top:100,width:200,height:40});}
   else if(m.t==='left')goHome();
   else if(m.t==='rematch'){
     rematch=m;var waitMe=m.waiting.some(function(w){return sess&&w.id===sess.pid;});
@@ -755,7 +772,7 @@ function sfx(evs,wasMine){
 var chatItems=[],unread=0;
 var QUICK_DEFAULT=['Jammer joh','Haha!','Strekken!','Goed gespeeld','Pas op, laatste kaart!','Wie heeft die 10?','Kom op, spelen!','Nog een potje?'];
 function quickList(){try{var l=JSON.parse(load('d3cks-quick')||'null');if(Array.isArray(l)&&l.length)return l.slice(0,8).map(String);}catch(e){}return QUICK_DEFAULT;}
-function closeSheets(){$('chatSheet').hidden=true;$('quickSheet').hidden=true;$('micSheet').hidden=true;}
+function closeSheets(){$('chatSheet').hidden=true;$('quickSheet').hidden=true;$('micSheet').hidden=true;$('seatSheet').hidden=true;}
 function renderChat(){
   var b=$('chatBadge');b.hidden=!unread;b.textContent=unread>9?'9+':String(unread);
   $('chatBtn').setAttribute('aria-label',unread?'Chat openen, '+unread+' nieuw':'Chat openen');
@@ -967,7 +984,10 @@ function act(d,el){
     case'start':send({t:'start'});return;
     case'leave':
       if(screen==='game'&&v&&v.phase==='play'&&!confirmLeave){confirmLeave=true;clearTimeout(confirmT);confirmT=setTimeout(function(){confirmLeave=false;if(v)render();},3500);render();return;}
-      confirmLeave=false;clearTimeout(confirmT);if(!send({t:'leave'}))goHome();return;
+      confirmLeave=false;clearTimeout(confirmT);var lst=getLast();if(lst)saveLast(lst,true);if(!send({t:'leave'}))goHome();return;
+    case'goBack':var lb=getLast();if(lb){sess={code:lb.code,pid:lb.pid,token:lb.token};if(!send({t:'rejoin',code:sess.code,pid:sess.pid,token:sess.token}))sess=null;}return;
+    case'takeSeat':if((n=name()||$('name').value||'Speler'))send({t:'join',code:seatCode,name:n,seatId:d.id});return;
+    case'seatClose':$('seatSheet').hidden=true;return;
     case'hand':
       if(v.phase==='swap'){var a=v.hand.filter(function(x){return x.id===id;})[0];
         var same=a&&v.hand.some(function(c){return c.id===sel&&(c.k==='n'?a.k==='n'&&c.v===a.v:c.k===a.k);});
@@ -1000,6 +1020,8 @@ $('code').addEventListener('input',function(){this.value=this.value.toUpperCase(
 $('name').value=load('d3cks-name')||'';
 var hash=(location.hash||'').slice(1).toUpperCase().replace(/[^A-Z]/g,'').slice(0,4);
 try{sess=JSON.parse(loadTab()||'null');}catch(e){sess=null;}
+// Nieuw tabblad of app opnieuw geopend: probeer zachtjes terug te gaan naar de laatste plek.
+if(!sess){var lst0=getLast();if(lst0&&!lst0.left&&(!hash||hash===lst0.code))sess={code:lst0.code,pid:lst0.pid,token:lst0.token,soft:true};}
 if(sess&&hash&&sess.code!==hash){sess=null;storeTab(null);}
 if(hash.length===4)$('code').value=hash;
 // Thema: automatisch volgt het systeem (licht of blauw), de rest wordt vastgezet en onthouden.
@@ -1023,6 +1045,6 @@ document.addEventListener('change',function(e){if(e.target.matches&&e.target.mat
 (function(){var l=load('d3cks-level');if(l&&LEVEL_NL[l])$('botLevel').value=l;})();
 applyTheme(load('d3cks-theme')||'auto');
 sndLabel();txtLabel();
-show('home');
+show('home');showBack();
 connect();
 })();

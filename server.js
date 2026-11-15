@@ -195,6 +195,20 @@ function schedule(room, fxDur) {
 }
 function seatOf(room, pid) { return room.players.findIndex(p => p.id === pid); }
 
+/* ---------- terugkeren ---------- */
+function reclaim(room, p, ws) {
+  if (p.ws && p.ws !== ws) { const old = p.ws; old.room = null; try { send(old, { t: 'kicked', msg: 'Je speelt nu verder op een ander scherm.' }); old.close(); } catch (e) {} }
+  const wasLeft = p.left;
+  p.ws = ws; p.connected = true; p.left = false; ws.room = room; ws.pid = p.id; room.emptySince = null;
+  send(ws, { t: 'joined', code: room.code, pid: p.id, token: p.token });
+  send(ws, { t: 'chatlog', items: room.chat });
+  if (room.rematch) send(ws, rematchMsg(room));
+  if (!room.g) return broadcastLobby(room);
+  if (wasLeft) room.players.forEach(q => { if (!q.bot && q !== p) send(q.ws, { t: 'back', name: p.name }); });
+  broadcastState(room);
+  schedule(room, 0);
+}
+
 /* ---------- rematch ---------- */
 const REMATCH_WAIT = +process.env.REMATCH_WAIT || 30000;
 function activeHumans(room) { return room.players.filter(p => !p.bot && !p.left); }
@@ -205,7 +219,7 @@ function rematchMsg(room) {
 }
 // Iemand gaat eruit tijdens de stemming: zijn plek blijft tot de stemming klaar is, zodat de stoelnummers kloppen.
 function kickOut(room, p, msg) {
-  p.left = true; p.ready = true;
+  p.left = true; p.ready = true; p.kicked = true;
   if (p.ws) { const w = p.ws; w.room = null; p.ws = null; p.connected = false; if (msg) send(w, { t: 'kicked', msg }); }
 }
 function checkRematch(room) {
@@ -266,7 +280,15 @@ const handlers = {
     if (ws.room) return;
     const room = rooms.get(String(m.code || '').toUpperCase().trim());
     if (!room) return fail(ws, 'Er is geen spel met deze code.');
-    if (room.g) return fail(ws, 'Dit spel is al begonnen.');
+    if (room.g) {
+      // Spel loopt al: wie eruit is gegaan (verbinding kwijt of per ongeluk 'Verlaten') kan zijn plek terugnemen.
+      const free = room.players.filter(p => !p.bot && !p.kicked && (!p.connected || p.left));
+      if (!free.length) return fail(ws, 'Dit spel is al begonnen.');
+      const nm = String(m.name || '').trim().toLowerCase();
+      const pick = (m.seatId && free.find(p => p.id === m.seatId)) || free.find(p => p.name.toLowerCase() === nm);
+      if (!pick) return send(ws, { t: 'seats', code: room.code, seats: free.map(p => ({ id: p.id, name: p.name })) });
+      return reclaim(room, pick, ws);
+    }
     if (room.players.length >= MAX_PLAYERS) return fail(ws, 'Dit spel zit vol.');
     addHuman(room, m.name, ws);
     room.emptySince = null;
@@ -274,16 +296,12 @@ const handlers = {
   },
   rejoin(ws, m) {
     const room = rooms.get(String(m.code || ''));
-    const p = room && room.players.find(q => q.id === m.pid && !q.bot && q.token === m.token && !q.left);
+    // Ook wie per ongeluk op 'Verlaten' drukte (left), mag terug zolang het spel loopt; wie bij een rematch weigerde niet.
+    const p = room && room.players.find(q => q.id === m.pid && !q.bot && q.token === m.token && !q.kicked && (!q.left || room.g));
     if (!p) return fail(ws, 'Dit spel bestaat niet meer.', 'gone');
-    if (p.ws && p.ws !== ws) { p.ws.room = null; try { p.ws.close(); } catch (e) {} }
-    p.ws = ws; p.connected = true; ws.room = room; ws.pid = p.id; room.emptySince = null;
-    send(ws, { t: 'joined', code: room.code, pid: p.id, token: p.token });
-    send(ws, { t: 'chatlog', items: room.chat });
-    if (room.rematch) send(ws, rematchMsg(room));
-    if (!room.g) return broadcastLobby(room);
-    broadcastState(room);
-    schedule(room, 0);
+    // 'soft' = automatisch terugkeren bij het openen van de app: niet doen als die plek nog ergens actief is.
+    if (m.soft && p.connected && p.ws && p.ws !== ws && p.ws.readyState === 1) return fail(ws, '', 'busy');
+    reclaim(room, p, ws);
   },
   // Porren: een medespeler tikt op de naam van wie aan de beurt is en lang doet.
   nudge(ws) {

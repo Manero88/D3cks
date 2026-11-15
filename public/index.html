@@ -478,6 +478,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
     <p class="sub installhint" id="iosHint" hidden>Op je iPhone: tik in Safari op <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan staat D3cks als app op je telefoon.</p>
     <label class="field" for="name">Je naam<input id="name" maxlength="14" autocomplete="nickname" placeholder="Hoe heet je?"></label>
     <p class="err" id="homeErr" role="alert" hidden></p>
+    <div><button class="btn main" type="button" id="backBtn" data-act="goBack" hidden>Terug naar je spel</button></div>
     <div class="modes">
       <div class="mode">
         <div class="mode-h"><span class="card back d1"><span class="bwm">D<b>3</b>CKS</span></span><h2>Host</h2></div>
@@ -599,6 +600,11 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
     <div class="actions" id="sumActs"></div>
   </section>
 </div>
+<section class="sheet" id="seatSheet" hidden aria-label="Plek terugnemen">
+  <div class="sheet-h"><strong>Welke speler ben jij?</strong><button class="btn small" type="button" data-act="seatClose">Sluiten</button></div>
+  <p class="sub">Dit spel is al bezig. Kies je eigen plek om verder te spelen.</p>
+  <div class="pickrow" id="seatList"></div>
+</section>
 <section class="sheet" id="micSheet" hidden aria-label="Microfoon">
   <div class="sheet-h"><strong>Microfoon</strong><button class="btn small" type="button" data-act="micClose">Sluiten</button></div>
   <div id="micHelp" class="michelp"></div>

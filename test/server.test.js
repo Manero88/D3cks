@@ -88,9 +88,38 @@ const wait = (f, ms = 20000) => new Promise((res, rej) => { const t0 = Date.now(
   b.ws.close();
   const bi = () => a.v.players.findIndex(p => p.name === 'Manero 2');
   await wait(() => a.v.players[bi()].away);
-  const b2 = client(port); await b2.open; b2.auto = true;
+  let b2 = client(port); await b2.open; b2.auto = true;
   b2.send({ t: 'rejoin', code, pid: b.sess.pid, token: b.sess.token });
   await wait(() => b2.v && !a.v.players[bi()].away);
+  // per ongeluk 'Verlaten': met dezelfde gegevens terug op de eigen plek
+  const bTok = b.sess.token, bPid = b.sess.pid;
+  b2.send({ t: 'leave' }); await wait(() => b2.msgs.some(m => m.t === 'left'));
+  await wait(() => a.v.players[bi()].away);
+  const b3 = client(port); await b3.open; b3.auto = true;
+  b3.send({ t: 'rejoin', code, pid: bPid, token: bTok });
+  await wait(() => b3.v && !a.v.players[bi()].away);
+  // andere telefoon: meedoen met code en dezelfde naam neemt de plek over
+  // zolang de plek nog verbonden is, kan niemand hem met alleen de naam overnemen
+  const bx = client(port); await bx.open; bx.send({ t: 'join', code, name: 'Manero 2' });
+  await wait(() => bx.errors.some(e => e.includes('al begonnen')));
+  b3.ws.close(); await wait(() => a.v.players[bi()].away);
+  const b4 = client(port); await b4.open; b4.auto = true;
+  b4.send({ t: 'join', code, name: 'manero 2' });
+  await wait(() => b4.v && !a.v.players[bi()].away);
+  // automatisch terug ('soft') mag niet als de plek nog actief is
+  const b5 = client(port); await b5.open;
+  b5.send({ t: 'rejoin', code, pid: bPid, token: bTok, soft: true });
+  await wait(() => b5.msgs.some(m => m.t === 'error' && m.code === 'busy'));
+  // andere naam terwijl er een plek vrij is: kies je plek
+  b4.ws.close(); await wait(() => a.v.players[bi()].away);
+  const b6 = client(port); await b6.open; b6.auto = true;
+  b6.send({ t: 'join', code, name: 'Iemand' });
+  await wait(() => b6.msgs.some(m => m.t === 'seats'));
+  const seat = b6.msgs.find(m => m.t === 'seats').seats[0];
+  assert.strictEqual(seat.name, 'Manero 2');
+  b6.send({ t: 'join', code, name: 'Iemand', seatId: seat.id });
+  await wait(() => b6.v && !a.v.players[bi()].away);
+  b2 = b6;
   const bad = client(port); await bad.open; bad.send({ t: 'rejoin', code, pid: b.sess.pid, token: 'fout' }); await wait(() => bad.errors.length === 1);
   await wait(() => a.v.phase === 'over', 60000);
   assert(a.v.winner !== null && b2.v.phase === 'over');
