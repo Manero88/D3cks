@@ -17,6 +17,7 @@ const NUDGE_AFTER = +process.env.NUDGE_AFTER || 10000;    // porren mag pas na z
 const NUDGE_GAP = +process.env.NUDGE_GAP || 20000;        // en daarna niet vaker dan eens per zoveel ms
 const DRAW_SHOW = +process.env.DRAW_SHOW || 1800;          // zo lang blijven de getrokken kaarten in beeld
 const ROOM_TTL = +process.env.ROOM_TTL || 10 * 60000;  // lege kamer opruimen na 10 minuten
+const BOT_LEVELS = ['easy', 'normal', 'hard'];
 const MAX_PLAYERS = 8, MIN_PLAYERS = 3;
 const BOT_NAMES = ['Noor', 'Sem', 'Lotte', 'Daan', 'Fenna', 'Bram', 'Jip'];
 const PUB = path.join(__dirname, 'public');
@@ -55,7 +56,7 @@ function cleanName(n, room) {
   return out;
 }
 function makeRoom() {
-  const room = { code: newCode(), players: [], hostId: null, g: null, timer: null, seq: 0, emptySince: null, lastWinner: 0, chat: [] };
+  const room = { code: newCode(), players: [], hostId: null, g: null, timer: null, seq: 0, emptySince: null, lastWinner: 0, chat: [], botLevel: 'normal' };
   rooms.set(room.code, room);
   return room;
 }
@@ -81,6 +82,7 @@ function fail(ws, msg, code) { send(ws, { t: 'error', msg, code: code || '' }); 
 function lobbyMsg(room, p) {
   return { t: 'lobby', code: room.code, hostId: room.hostId, you: p.id, max: MAX_PLAYERS, min: MIN_PLAYERS,
     players: room.players.map(q => ({ id: q.id, name: q.name, bot: q.bot, connected: q.connected })),
+    botLevel: room.botLevel,
     rematch: room.isRematch ? { chooser: (room.players.find(q => q.id === room.prevWinnerId) || {}).name || null } : null };
 }
 function broadcastLobby(room) { room.players.forEach(p => { if (!p.bot) send(p.ws, lobbyMsg(room, p)); }); }
@@ -101,7 +103,7 @@ function view(room, pi) {
     log: g.log.slice(-6),
     players: g.players.map((p, i) => {
       const rp = room.players[i];
-      return { name: p.name, bot: rp.bot, away: !rp.bot && (!rp.connected || rp.left), out: p.out, ready: rp.ready,
+      return { name: p.name, bot: rp.bot, level: rp.bot ? p.level : null, away: !rp.bot && (!rp.connected || rp.left), out: p.out, ready: rp.ready,
         n: p.hand.length, backs: p.hand.slice(0, 7).map(c => c.d), open: p.open, zone: E.zoneOf(p),
         // Aan het eind van het potje gaat alles open: blinde kaarten en handen van iedereen.
         blind: reveal ? p.blind : p.blind.map(c => c.d), cards: reveal ? p.hand : null,
@@ -136,7 +138,7 @@ function broadcastState(room) {
 // Eerste potje: opgooien wie begint. Rematch: de winnaar van het vorige potje coupeert en kiest (opgooien
 // alleen als die winnaar niet meer meedoet).
 function startGame(room) {
-  const specs = room.players.map(p => ({ name: p.name, bot: p.bot }));
+  const specs = room.players.map(p => ({ name: p.name, bot: p.bot, level: room.botLevel }));
   const chooser = room.isRematch ? room.players.findIndex(p => p.id === room.prevWinnerId) : -1;
   room.g = E.newGame(crypto.randomInt(2147483647), specs, chooser >= 0 ? { cutter: chooser } : undefined);
   room.isRematch = false;
@@ -256,6 +258,7 @@ const handlers = {
     const room = makeRoom();
     addHuman(room, m.name, ws);
     const n = Math.max(2, Math.min(MAX_PLAYERS - 1, m.bots | 0));
+    if (BOT_LEVELS.includes(m.level)) room.botLevel = m.level;
     for (let i = 0; i < n; i++) addBot(room);
     startGame(room);
   },
@@ -317,6 +320,11 @@ const handlers = {
     if (i < 0 || j < 0 || i === j) return;
     [room.players[i], room.players[j]] = [room.players[j], room.players[i]];
     broadcastLobby(room);
+  },
+  // Moeilijkheid van alle bots in deze kamer (alleen de host, in de lobby).
+  setBotLevel(ws, m) {
+    const room = ws.room; if (!room || room.g || room.hostId !== ws.pid || !BOT_LEVELS.includes(m.level)) return;
+    room.botLevel = m.level; broadcastLobby(room);
   },
   addBot(ws) {
     const room = ws.room;

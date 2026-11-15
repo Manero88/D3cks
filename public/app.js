@@ -2,6 +2,7 @@
 'use strict';
 // Client van 3Decks. De server bepaalt het spel; deze code toont wat de server
 // stuurt (v = jouw zicht op het spel), stuurt jouw zetten terug en speelt de animaties af.
+var LEVEL_NL={easy:'makkelijk',normal:'normaal',hard:'moeilijk'};
 var rematch=null,rmTimer=null,ws=null,online=false,sess=null,lob=null,v=null,screen='home';
 var sel=null,picker=null,lastSrc=null,pickSrc=null,busy=false,confirmLeave=false,confirmT=null,errT=null,retry=null;
 var motion=!!(window.matchMedia&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -107,7 +108,7 @@ function renderLobby(){
   var h='';
   lob.players.forEach(function(p){
     if(p.id===lob.hostId)hostName=p.name;
-    var idx=lob.players.indexOf(p),tags=[];if(p.id===lob.you)tags.push('jij');if(p.id===lob.hostId)tags.push('host');if(p.bot)tags.push('bot');if(!p.connected)tags.push('verbinding kwijt');
+    var idx=lob.players.indexOf(p),tags=[];if(p.id===lob.you)tags.push('jij');if(p.id===lob.hostId)tags.push('host');if(p.bot)tags.push('bot · '+(LEVEL_NL[lob.botLevel]||'normaal'));if(!p.connected)tags.push('verbinding kwijt');
     h+='<li data-seat="'+idx+'"'+(p.connected?'':' class="off"')+'><span class="seatno">'+(idx+1)+'</span><span class="grow">'+esc(p.name)+'</span><span class="tag">'+tags.join(' · ')+'</span>'+
       (p.id!==lob.you?'<button type="button" class="btn small" data-act="swapSeat" data-id="'+p.id+'" aria-label="Van plek wisselen met '+esc(p.name)+'">Wissel</button>':'')+
       (host&&p.id!==lob.you&&(p.bot||!p.connected)?'<button type="button" class="btn small" data-act="remove" data-id="'+p.id+'" aria-label="'+esc(p.name)+' weghalen">Weghalen</button>':'')+'</li>';
@@ -115,6 +116,7 @@ function renderLobby(){
   $('plist').innerHTML=h;
   var c='';
   if(host){
+    c+='<div class="actions"><select class="lvlsel" id="lobLevel" aria-label="Niveau van de bots">'+['easy','normal','hard'].map(function(l){return'<option value="'+l+'"'+(lob.botLevel===l?' selected':'')+'>Bots: '+LEVEL_NL[l]+'</option>';}).join('')+'</select></div>';
     c+='<div class="actions"><button type="button" class="btn" data-act="addBot"'+(n>=lob.max?' disabled':'')+'>Bot toevoegen</button>'+
       '<button type="button" class="btn" data-act="shuffleSeats"'+(n<2?' disabled':'')+'>Plekken husselen</button>'+
       '<button type="button" class="btn main" data-act="start"'+(n<lob.min?' disabled':'')+'>Start het spel</button></div>';
@@ -178,7 +180,7 @@ function render(){
     var rh='';if(p.cards&&p.cards.length){p.cards.slice().sort(function(a,b){return(a.k==='n'?a.v:99)-(b.k==='n'?b.v:99);}).forEach(function(c,j){rh+=face(c,{cls:'revealed',attr:' style="--rd:'+(.5+j*.04).toFixed(2)+'s"'});});}
     else p.backs.forEach(function(d,j){fan+=back(d,'',' style="--r:'+((j-m)*8).toFixed(1)+'deg"');});
     var where=p.out?'Ligt uit het spel':v.phase==='swap'?(p.ready?'Klaar':'Legt kaarten goed'):v.endgame&&p.zone==='open'?'Speelt open kaarten':v.endgame&&p.zone==='blind'?'Speelt blinde kaarten':'';
-    oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h">'+(turn&&!p.bot&&!p.away&&v.phase==='play'?'<button type="button" class="nudgebtn" data-act="nudge" title="Tik om '+esc(p.name)+' te porren" aria-label="'+esc(p.name)+' porren">'+esc(p.name)+'<span class="nh">por</span></button>':'<span class="nm">'+esc(p.name)+'</span>')+(p.bot?'<span class="tag">bot</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
+    oh+='<div class="seat'+(turn?' turn':'')+(p.out?' out':'')+'" data-seat="'+i+'"><div class="seat-h">'+(turn&&!p.bot&&!p.away&&v.phase==='play'?'<button type="button" class="nudgebtn" data-act="nudge" title="Tik om '+esc(p.name)+' te porren" aria-label="'+esc(p.name)+' porren">'+esc(p.name)+'<span class="nh">por</span></button>':'<span class="nm">'+esc(p.name)+'</span>')+(p.bot?'<span class="tag">bot · '+(LEVEL_NL[p.level]||'normaal')+'</span>':'')+(p.away?'<span class="tag">weg</span>':'')+
       (turn?'<span class="pill">aan de beurt</span>':'')+(lastOne(p)?'<span class="pill last">laatste kaart</span>':'')+(v.winner===i?'<span class="pill">winnaar</span>':'')+'</div>'+
       '<div class="seat-row sm"><div class="tbl">'+slotsHtml(p,false,st)+'</div><div class="handinfo">'+(rh?'':'<span class="fan">'+fan+'</span>')+'<span><b>'+p.n+'</b> in hand</span></div></div>'+(rh?'<div class="rhand sm" aria-label="Hand van '+esc(p.name)+'">'+rh+'</div>':'')+
       (where?'<div class="tag">'+where+'</div>':'')+'</div>';
@@ -913,7 +915,7 @@ function act(d,el){
       var code=$('code').value.toUpperCase().replace(/[^A-Z]/g,'');
       if(code.length!==4){showErr('Een spelcode heeft 4 letters.');$('code').focus();return;}
       if((n=name()))send({t:'join',code:code,name:n});return;
-    case'solo':if((n=name()))send({t:'solo',name:n,bots:+$('bots').value});return;
+    case'solo':if((n=name())){store('d3cks-level',$('botLevel').value);send({t:'solo',name:n,bots:+$('bots').value,level:$('botLevel').value});}return;
     case'copy':copyInvite();return;
     case'share':shareInvite();return;
     case'chat':if($('chatSheet').hidden){closeSheets();$('chatSheet').hidden=false;unread=0;renderChat();var lg=$('chatLog');lg.scrollTop=lg.scrollHeight;}else closeSheets();return;
@@ -1004,7 +1006,8 @@ if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostnam
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;$('installBtn').hidden=false;});
 window.addEventListener('appinstalled',function(){installEvt=null;$('installBtn').hidden=true;});
 if(!standalone&&/iPhone|iPad|iPod/.test(navigator.userAgent||''))$('iosHint').hidden=false;
-document.addEventListener('change',function(e){if(e.target.matches&&e.target.matches('[data-theme-select]'))applyTheme(e.target.value);});
+document.addEventListener('change',function(e){if(e.target.matches&&e.target.matches('[data-theme-select]'))applyTheme(e.target.value);if(e.target.id==='lobLevel')send({t:'setBotLevel',level:e.target.value});});
+(function(){var l=load('d3cks-level');if(l&&LEVEL_NL[l])$('botLevel').value=l;})();
 applyTheme(load('d3cks-theme')||'auto');
 sndLabel();txtLabel();
 show('home');

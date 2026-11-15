@@ -223,6 +223,8 @@ body{margin:0;min-height:100vh;background:var(--table);color:var(--ink);font-fam
 .shake{animation:shk .5s ease-in-out 2}
 @keyframes shk{20%{translate:-8px 0}40%{translate:8px 0}60%{translate:-6px 0}80%{translate:4px 0}}
 .sharerow .btn{display:inline-flex;align-items:center;gap:7px;text-decoration:none}
+.botopts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lvlsel{width:auto;min-height:38px;font-size:14px;font-weight:700;padding:5px 30px 5px 10px}
 .rmbox{width:min(420px,100%);align-items:flex-start;text-align:left}
 .rmbox p{margin:0;font-size:16px}
 .rmtitle{font:800 30px/1 var(--font-d)}
@@ -464,7 +466,7 @@ input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-of
       <div class="mode">
         <div class="mode-h"><span class="card back d3"><span class="bwm">D<b>3</b>CKS</span></span><h2>Tegen bots</h2></div>
         <p>Speel in je eentje. Het spel begint meteen.</p>
-        <label class="field" for="bots">Aantal bots<select id="bots"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <div class="botopts"><label class="field" for="bots">Aantal bots<select id="bots"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label><label class="field" for="botLevel">Niveau<select id="botLevel"><option value="easy">Makkelijk</option><option value="normal" selected>Normaal</option><option value="hard">Moeilijk</option></select></label></div>
         <button class="btn main" type="button" data-act="solo">Start</button>
       </div>
     </div>

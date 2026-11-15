@@ -43,4 +43,22 @@ g=endg();g.pile=[{c:{id:900,v:4,k:'n',d:1},as:4}];g.turn=0;
 g.players[0].hand=H(2,5,13);g.players[0].open=[];g.players[0].blind=[];
 g.players[1].hand=[];g.players[1].open=[];g.players[1].blind=[{id:701,v:3,k:'n',d:1}];
 E.botTurn(g);assert.strictEqual(g.pile[g.pile.length-1].as,13,'speelt hoog');
+// voorbeeld uit het spel: volgende heeft alleen nog 3 blinde kaarten, bot heeft veel kaarten -> speelt hoog, niet de 4
+for (const lvl of ['normal', 'hard']) {
+  g=endg();g.players[0].level=lvl;g.pile=[{c:{id:900,v:3,k:'n',d:1},as:3}];g.turn=0;
+  g.players[0].hand=H(4,5,6,9,12,13,5,6,4,9);g.players[0].open=[];g.players[0].blind=[];
+  g.players[1].hand=[];g.players[1].open=[];g.players[1].blind=[{id:701,v:3,k:'n',d:1},{id:702,v:3,k:'n',d:1},{id:703,v:3,k:'n',d:1}];
+  E.botTurn(g);assert.strictEqual(g.pile[g.pile.length-1].as,13,lvl+' speelt hoog tegen 3 blinde kaarten');
+}
+// moeilijk onthoudt opgepakte kaarten: volgende heeft (bekend) 5 en 6 in de hand; bot heeft 6 en 7
+function memo(lvl){const g=endg();g.players[0].level=lvl;g.pile=[{c:{id:900,v:4,k:'n',d:1},as:4}];g.turn=0;
+  g.players[0].hand=H(6,7);g.players[0].open=[];g.players[0].blind=[];
+  g.players[1].hand=[{id:711,v:5,k:'n',d:1},{id:712,v:6,k:'n',d:1}];g.players[1].seen={711:1,712:1};g.players[1].open=[];g.players[1].blind=[];
+  E.botTurn(g);return g.pile[g.pile.length-1].as;}
+assert.strictEqual(memo('hard'),6,'moeilijk blokkeert de bekende 5');
+assert.strictEqual(memo('normal'),7,'normaal weet het niet en speelt het hoogst');
+// alle niveaus: geen vastgelopen potjes
+for (const lvl of ['easy','normal','hard']) {let stuck=0;
+  for(let s=1;s<=500;s++){const g=E.newGame(s*977,Array.from({length:4},(_,i)=>({name:'P'+i,bot:true,level:lvl})),0);E.begin(g);let t=0;while(g.phase==='play'&&t<30000){E.botTurn(g);t++;}if(g.phase!=='over')stuck++;}
+  console.log('niveau '+lvl+': vastgelopen '+stuck+' van 500');assert(stuck<=1);}
 console.log('engine ok');

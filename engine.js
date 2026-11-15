@@ -8,6 +8,9 @@ function shuffle(g,a){for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd(g)*(i
 function say(g,t,k){g.log.push({t:t,k:k||'',n:++g.n});if(g.log.length>60)g.log.shift();}
 function fxp(g,o){g.fx.push(o);if(g.fx.length>40)g.fx.shift();}
 function strength(c){return c.k!=='n'?100:c.v===10?90:c.v===2?80:c.v;}
+// Moeilijkheid van de bots: makkelijk speelt willekeurig, normaal speelt zuinig en blokkeert als de volgende
+// bijna klaar is, moeilijk blokkeert eerder en onthoudt welke kaarten iemand bij het pakken heeft opgepakt.
+const LEVELS={easy:1,normal:1,hard:1};
 function botSwap(p){const all=p.hand.concat(p.open).sort(function(a,b){return strength(b)-strength(a);});p.open=all.slice(0,3);p.hand=all.slice(3);}
 // newGame(seed, spelers)                     -> eerste potje: opgooien (hoogste kaart begint), dan delen.
 // newGame(seed, spelers, {cutter: i})        -> rematch: winnaar i coupeert en kiest startspeler en richting.
@@ -16,7 +19,7 @@ function newGame(seed,specs,startIdx){
   specs=specs&&specs.length?specs:[{name:'Jij',bot:false},{name:'Noor',bot:true},{name:'Sem',bot:true}];
   const quick=typeof startIdx==='number',rematch=startIdx&&typeof startIdx==='object'?startIdx:null;
   const g={rs:seed|0,deck:[],pile:[],burned:0,dir:1,turn:quick?startIdx:0,start:quick?startIdx:0,cutter:null,phase:'swap',draws:[],sevenBy:null,endgame:false,dqDone:false,winner:null,pendingBlind:null,log:[],n:0,fx:[],
-    players:specs.map(function(p){return{name:p.name,bot:!!p.bot,hand:[],open:[],blind:[],drew:false,out:false,
+    players:specs.map(function(p){return{name:p.name,bot:!!p.bot,level:LEVELS[p.level]?p.level:'normal',seen:{},hand:[],open:[],blind:[],drew:false,out:false,
       st:{played:0,tens:0,burns:0,picks:0,picked:0,maxPick:0,twos:0,sevens:0,eights:0,jacks:0,aces:0,wilds:0,blindFail:0,peak:0}};})};
   let id=0;
   for(let d=1;d<=3;d++){
@@ -34,7 +37,7 @@ function newGame(seed,specs,startIdx){
 function peak(p){const n=p.hand.length+p.open.length+p.blind.length;if(n>p.st.peak)p.st.peak=n;}
 function deal(g){
   ['blind','open','hand'].forEach(function(z){g.players.forEach(function(p){for(let i=0;i<3;i++)p[z].push(g.deck.pop());});});
-  g.players.forEach(function(p){if(p.bot)botSwap(p);peak(p);});
+  g.players.forEach(function(p){if(p.bot&&p.level!=='easy')botSwap(p);peak(p);});
   g.phase='swap';
 }
 // Eerste potje: iedereen trekt een kaart; de hoogste begint. Joker/scorekaart: die speler trekt opnieuw.
@@ -138,6 +141,7 @@ function refill(g,pi){
 }
 function place(g,pi,card,as,pre,from){
   const p=g.players[pi],wasEmpty=g.pile.length===0,st=p.st;
+  delete p.seen[card.id];
   st.played++;if(as===10)st.tens++;if(as===2)st.twos++;if(as===7)st.sevens++;if(as===8)st.eights++;if(as===11)st.jacks++;if(as===14)st.aces++;if(card.k!=='n')st.wilds++;
   g.pile.push({c:card,as:as});fxp(g,{t:'play',pi:pi,c:card,as:as,from:from||'hand'});
   const run=runLen(g);
@@ -161,7 +165,8 @@ function place(g,pi,card,as,pre,from){
 }
 function pickUp(g,pi,msg){
   const p=g.players[pi],n=g.pile.length;
-  g.pile.forEach(function(e){p.hand.push(e.c);});
+  // wat open op de stapel lag, weet iedereen: die kaarten zijn 'gezien' in deze hand
+  g.pile.forEach(function(e){p.hand.push(e.c);p.seen[e.c.id]=1;});
   p.st.picks++;p.st.picked+=n;if(n>p.st.maxPick)p.st.maxPick=n;peak(p);
   g.pile=[];g.sevenBy=null;fxp(g,{t:'pick',pi:pi});
   say(g,msg||p.name+' kan niet spelen en pakt de stapel ('+n+(n===1?' kaart':' kaarten')+').','pick');
@@ -185,7 +190,7 @@ function flipBlind(g,pi,i){
   const c=p.blind.splice(i,1)[0];
   if(c.k!=='n'){g.pendingBlind={pi:pi,c:c};return'wild';}
   if(canValue(g,c.v)){place(g,pi,c,c.v,p.name+' draait blind '+word(c.v)+' om en speelt hem','blind');return'ok';}
-  const n=g.pile.length;p.hand.push(c);p.st.blindFail++;fxp(g,{t:'flipfail',pi:pi,c:c,as:c.v});
+  const n=g.pile.length;p.hand.push(c);p.seen[c.id]=1;p.st.blindFail++;fxp(g,{t:'flipfail',pi:pi,c:c,as:c.v});
   pickUp(g,pi,p.name+' draait blind '+word(c.v)+' om. Die kan niet, dus de stapel van '+n+' gaat mee de hand in.');return'fail';
 }
 function resolveBlind(g,as){
@@ -203,13 +208,17 @@ function botWild(g){
 // De bot gebruikt alleen wat aan tafel zichtbaar is: een open kaart is bekend, een blinde of handkaart niet.
 function cardsLeft(p){return p.hand.length+p.open.length+p.blind.length;}
 function seatAfter(g,pi,steps){const n=g.players.length;let i=pi;for(let s=0;s<steps;s++){do{i=(i+g.dir+n)%n;}while(g.players[i].out);}return i;}
-function threatInfo(g,pi){
-  if(!g.endgame)return null;
-  if(!g.players.some(function(p,i){return i!==pi&&!p.out&&cardsLeft(p)===1;}))return null;
-  const nx=seatAfter(g,pi,1),q=g.players[nx];
-  if(nx===pi||cardsLeft(q)!==1)return{next:false};
-  const k=zoneOf(q)==='open'?q.open[0]:null;
-  return{next:true,known:k?(k.k==='n'?k.v:'wild'):null};
+function threatInfo(g,pi,level){
+  if(!g.endgame||level==='easy')return null;
+  const hard=level==='hard',nx=seatAfter(g,pi,1),q=g.players[nx],lim=hard?6:3;
+  const nextThreat=nx!==pi&&!q.out&&cardsLeft(q)<=lim;
+  const anyClose=g.players.some(function(p,i){return i!==pi&&!p.out&&cardsLeft(p)<=(hard?2:1);});
+  if(!nextThreat)return anyClose?{next:false}:null;
+  // Wat weet de bot (eerlijk, alleen wat aan tafel te zien was) over de kaarten waarmee de volgende verder kan?
+  const z=zoneOf(q);let known=null;
+  if(z==='open')known=q.open.map(function(c){return c.k==='n'?c.v:'wild';});
+  else if(z==='hand'&&hard&&q.hand.every(function(c){return q.seen[c.id];}))known=q.hand.map(function(c){return c.k==='n'?c.v:'wild';});
+  return{next:true,known:known,left:cardsLeft(q)};
 }
 // Kan een bekende kaart x niet meer gespeeld worden nadat de bot `as` heeft gelegd?
 function blocks(g,as,x){
@@ -224,13 +233,18 @@ function threatScore(g,p,as,th){
   if(as===10&&g.pile.length)return cardsLeft(p)>1?-150:-1000; // verbranden en zelf opnieuw
   const str=as===7?11.5:as;
   if(!th.next)return 20-str;
-  if(th.known==='wild')return 20-str;
-  if(typeof th.known==='number')return blocks(g,as,th.known)?-100+as*.1:100+as;
+  if(th.known){
+    if(th.known.indexOf('wild')>=0)return 20-str;          // een nar kan altijd: niet te blokkeren
+    const b=th.known.filter(function(x){return blocks(g,as,x);}).length/th.known.length;
+    return b===1?-100+as*.1:60-80*b+as*.5;                   // liefst alles blokkeren, anders zoveel mogelijk
+  }
   return -str*3;                                          // onbekend: zo hoog mogelijk
 }
 function botChoose(g,pi){
   const opts=options(g,pi);if(!opts.length)return null;
-  const top=topVal(g),run=runLen(g),empty=!g.pile.length,th=threatInfo(g,pi);let best=null;
+  const lvl=g.players[pi].level;
+  if(lvl==='easy'){const o=opts[Math.floor(rnd(g)*opts.length)];return{card:o.card,as:o.values[Math.floor(rnd(g)*o.values.length)]};}
+  const top=topVal(g),run=runLen(g),empty=!g.pile.length,th=threatInfo(g,pi,lvl);let best=null;
   if(th){
     opts.forEach(function(o){o.values.forEach(function(as){
       const sc=threatScore(g,g.players[pi],as,th)+(o.card.k!=='n'?5:0)+rnd(g)*4;
@@ -252,8 +266,9 @@ function botChoose(g,pi){
 }
 function botTurn(g){
   if(g.phase!=='play')return;const pi=g.turn,p=g.players[pi];
-  if(g.pendingBlind){resolveBlind(g,botWild(g));return;}
-  if(zoneOf(p)==='blind'){if(flipBlind(g,pi,Math.floor(rnd(g)*p.blind.length))==='wild')resolveBlind(g,botWild(g));return;}
+  const wildAs=function(){if(p.level!=='easy')return botWild(g);const v=wildValues(g);return v[Math.floor(rnd(g)*v.length)];};
+  if(g.pendingBlind){resolveBlind(g,wildAs());return;}
+  if(zoneOf(p)==='blind'){if(flipBlind(g,pi,Math.floor(rnd(g)*p.blind.length))==='wild')resolveBlind(g,wildAs());return;}
   const m=botChoose(g,pi);if(!m)takePile(g,pi);else playCard(g,pi,m.card.id,m.as);
 }
 return{CUT_MIN:CUT_MIN,afterDraw:afterDraw,cutDeck:cutDeck,botCut:botCut,cardsLeft:cardsLeft,lab:lab,word:word,newGame:newGame,swap:swap,begin:begin,topVal:topVal,runLen:runLen,canValue:canValue,wildValues:wildValues,zoneOf:zoneOf,options:options,playCard:playCard,takePile:takePile,flipBlind:flipBlind,resolveBlind:resolveBlind,botTurn:botTurn,jokerInPile:jokerInPile};
